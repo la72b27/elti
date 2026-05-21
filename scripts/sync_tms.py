@@ -36,11 +36,12 @@ def get_token_via_browser() -> str:
             nonlocal token
             try:
                 url = response.url
-                if "authentication" in url and response.status == 200:
+                if TMS_API_BASE.replace("https://", "") in url and response.status == 200:
                     data = response.json()
-                    t = data.get("accessToken") or data.get("token") or data.get("access_token")
-                    if t:
-                        token = t
+                    if isinstance(data, dict):
+                        t = data.get("accessToken") or data.get("token") or data.get("access_token")
+                        if t and isinstance(t, str) and len(t) > 100:
+                            token = t
             except Exception:
                 pass
 
