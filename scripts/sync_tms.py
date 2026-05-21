@@ -53,7 +53,10 @@ def fetch_alarms_via_browser() -> list[dict]:
         page.fill("#loginformpassword", TMS_PASSWORD)
         page.click('button[type="submit"]')
 
-        page.wait_for_load_state("networkidle", timeout=30000)
+        page.wait_for_timeout(5000)
+
+        if "login" in page.url.lower():
+            page.wait_for_load_state("networkidle", timeout=25000)
 
         if "login" in page.url.lower():
             raise RuntimeError("Login failed - check TMS_USERNAME and TMS_PASSWORD")
