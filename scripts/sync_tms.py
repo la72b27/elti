@@ -80,13 +80,13 @@ def get_token_via_browser() -> str:
         current_url = page.url
         print(f"Current URL after login: {current_url}")
 
-        if "login" in current_url.lower():
-            raise RuntimeError("Login failed - check TMS_USERNAME and TMS_PASSWORD")
-
-        # 登录成功但仍未捕获到 token，再额外等 5 秒
+        # 已捕获到 token 说明 API 认证成功，无需依赖页面跳转
         if not token:
+            # token 未捕获时再等 5 秒（应对页面跳转较慢的情况）
             print("Token not yet captured, waiting extra 5s for deferred auth response...")
             page.wait_for_timeout(5000)
+            if not token and "login" in page.url.lower():
+                raise RuntimeError("Login failed - check TMS_USERNAME and TMS_PASSWORD")
 
         browser.close()
 
