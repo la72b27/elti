@@ -51,17 +51,41 @@ def fetch_alarms_via_browser() -> list[dict]:
         print(f"DEBUG: Navigating to {TMS_BASE_URL}/login")
         page.goto(f"{TMS_BASE_URL}/login", timeout=30000)
         page.wait_for_load_state("networkidle", timeout=15000)
+        print(f"DEBUG: Login page URL: {page.url}")
+        print(f"DEBUG: Page title: {page.title()}")
+
+        inputs = page.query_selector_all("input")
+        for i, inp in enumerate(inputs):
+            print(f"DEBUG input[{i}]: type={inp.get_attribute('type')} name={inp.get_attribute('name')} id={inp.get_attribute('id')} placeholder={inp.get_attribute('placeholder')}")
+
+        buttons = page.query_selector_all("button")
+        for i, btn in enumerate(buttons):
+            print(f"DEBUG button[{i}]: type={btn.get_attribute('type')} text={btn.inner_text()[:30]}")
 
         print("DEBUG: Filling login form")
-        page.fill('input[name="username"], input[type="email"], input[id="username"]', TMS_USERNAME)
-        page.fill('input[name="password"], input[type="password"]', TMS_PASSWORD)
-        page.click('button[type="submit"]')
+        email_input = page.query_selector('input[type="email"]') or page.query_selector('input[name="username"]') or page.query_selector('input[placeholder*="email" i]') or page.query_selector('input[placeholder*="Email" i]')
+        password_input = page.query_selector('input[type="password"]')
+
+        if not email_input:
+            raise RuntimeError("Could not find email/username input field")
+        if not password_input:
+            raise RuntimeError("Could not find password input field")
+
+        email_input.fill(TMS_USERNAME)
+        password_input.fill(TMS_PASSWORD)
+
+        submit_btn = page.query_selector('button[type="submit"]') or page.query_selector('button:has-text("Login")') or page.query_selector('button:has-text("Sign")') or page.query_selector('button:has-text("Log")')
+        if submit_btn:
+            submit_btn.click()
+        else:
+            password_input.press("Enter")
 
         print("DEBUG: Waiting for post-login navigation")
         page.wait_for_load_state("networkidle", timeout=30000)
         print(f"DEBUG: Current URL after login: {page.url}")
 
         if "login" in page.url.lower():
+            print(f"DEBUG: Page content snippet: {page.content()[:500]}")
             raise RuntimeError("Login failed - still on login page after submit")
 
         print("DEBUG: Navigating to alarm page")
