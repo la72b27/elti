@@ -1,0 +1,12 @@
+[project]
+name = "elti"
+version = "0.1.0"
+description = "ELTI Python Worker"
+dependencies = [
+    "httpx",
+]
+
+[tool.uv]
+dev-dependencies = [
+    "wrangler",
+]

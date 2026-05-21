@@ -1,0 +1,117 @@
+import os
+import json
+import httpx
+from datetime import datetime, timezone, timedelta
+
+TMS_BASE_URL = os.environ["TMS_BASE_URL"].rstrip("/")
+TMS_USERNAME = os.environ["TMS_USERNAME"]
+TMS_PASSWORD = os.environ["TMS_PASSWORD"]
+ELTI_WORKER_URL = os.environ["ELTI_WORKER_URL"].rstrip("/")
+ELTI_UPDATE_TOKEN = os.environ.get("ELTI_UPDATE_TOKEN", "")
+
+SGT = timezone(timedelta(hours=8))
+
+RBE_MAP = {"COMF": "COMF", "IOF": "IOF"}
+
+
+def get_tms_token(client: httpx.Client) -> str:
+    resp = client.post(
+        f"{TMS_BASE_URL}/api/auth/login",
+        json={"username": TMS_USERNAME, "password": TMS_PASSWORD},
+        timeout=30,
+    )
+    resp.raise_for_status()
+    return resp.json()["token"]
+
+
+def fetch_alarms(client: httpx.Client, token: str) -> list[dict]:
+    resp = client.get(
+        f"{TMS_BASE_URL}/api/alarms",
+        headers={"Authorization": f"Bearer {token}"},
+        params={"status": "SET"},
+        timeout=30,
+    )
+    resp.raise_for_status()
+    return resp.json()
+
+
+def transform(raw_alarms: list[dict]) -> dict:
+    records = []
+    for alarm in raw_alarms:
+        rbe_raw = str(alarm.get("rbe_type", "")).upper()
+        rbe = rbe_raw if rbe_raw in RBE_MAP else "COMF"
+
+        tc_raw = str(alarm.get("tc_code", ""))
+        tc_display = tc_raw if tc_raw else "-"
+
+        status_date_raw = alarm.get("status_date") or alarm.get("updated_at") or ""
+        try:
+            dt = datetime.fromisoformat(status_date_raw.replace("Z", "+00:00"))
+            status_date = dt.astimezone(SGT).strftime("%Y-%m-%d %H:%M")
+        except Exception:
+            status_date = status_date_raw[:16] if status_date_raw else "-"
+
+        records.append(
+            {
+                "TC_Display": tc_display,
+                "Pfx": str(alarm.get("prefix", "")),
+                "Block": str(alarm.get("block", "")),
+                "Lift": str(alarm.get("lift", "")),
+                "Address": str(alarm.get("address", "")),
+                "LCOY": str(alarm.get("lcoy", "")),
+                "Status Date": status_date,
+                "RBE": rbe,
+                "RBE_Display": rbe,
+                "Status": str(alarm.get("status", "SET")),
+            }
+        )
+
+    comf_records = [r for r in records if r["RBE"] == "COMF"]
+    iof_records = [r for r in records if r["RBE"] == "IOF"]
+
+    tc_stats: dict[str, dict[str, int]] = {"COMF": {}, "IOF": {}}
+    for r in comf_records:
+        tc = r["TC_Display"]
+        tc_stats["COMF"][tc] = tc_stats["COMF"].get(tc, 0) + 1
+    for r in iof_records:
+        tc = r["TC_Display"]
+        tc_stats["IOF"][tc] = tc_stats["IOF"].get(tc, 0) + 1
+
+    now_sgt = datetime.now(SGT).strftime("%Y-%m-%d %H:%M")
+
+    return {
+        "records": records,
+        "comf_count": len(comf_records),
+        "iof_count": len(iof_records),
+        "tc_stats": tc_stats,
+        "last_updated": now_sgt,
+    }
+
+
+def push_to_worker(payload: dict) -> None:
+    headers = {"Content-Type": "application/json"}
+    if ELTI_UPDATE_TOKEN:
+        headers["X-Update-Token"] = ELTI_UPDATE_TOKEN
+
+    with httpx.Client() as client:
+        resp = client.post(
+            f"{ELTI_WORKER_URL}/update",
+            content=json.dumps(payload),
+            headers=headers,
+            timeout=30,
+        )
+        resp.raise_for_status()
+        print(f"Pushed {len(payload['records'])} records → {resp.status_code}")
+
+
+def main() -> None:
+    with httpx.Client() as client:
+        token = get_tms_token(client)
+        raw_alarms = fetch_alarms(client, token)
+
+    payload = transform(raw_alarms)
+    push_to_worker(payload)
+
+
+if __name__ == "__main__":
+    main()

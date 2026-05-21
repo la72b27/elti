@@ -1,0 +1,8 @@
+name = "elti"
+main = "src/entry.py"
+compatibility_date = "2024-04-03"
+compatibility_flags = ["python_workers"]
+
+[[kv_namespaces]]
+binding = "ELTI_DATA"
+id = "bfbb7960f088482aa74b5a94416e564e"
