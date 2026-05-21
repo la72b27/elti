@@ -19,6 +19,7 @@ ELTI_UPDATE_TOKEN = os.environ.get("ELTI_UPDATE_TOKEN", "")
 
 TMS_AUTH_URL = "https://tms-production-api.azure.surbana.tech/auth/api/v1"
 TMS_API_URL = "https://tms-production-api.azure.surbana.tech/portalapi"
+TMS_LOGIN_URL = f"{TMS_AUTH_URL}/user"
 
 SGT = timezone(timedelta(hours=8))
 
@@ -27,7 +28,7 @@ RBE_MAP = {"COMF": "COMF", "IOF": "IOF"}
 
 def get_tms_token(client: httpx.Client) -> str:
     resp = client.post(
-        f"{TMS_AUTH_URL}/authentication",
+        TMS_LOGIN_URL,
         json={"username": TMS_USERNAME, "password": TMS_PASSWORD},
         timeout=30,
     )
