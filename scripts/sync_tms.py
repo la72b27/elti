@@ -123,7 +123,7 @@ def main() -> None:
         print("ERROR: ELTI_WORKER_URL is empty. Please check GitHub Secrets.")
         return
 
-    with httpx.Client() as client:
+    with httpx.Client(verify=False) as client:
         token = get_tms_token(client)
         raw_alarms = fetch_alarms(client, token)
 
