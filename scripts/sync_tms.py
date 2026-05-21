@@ -11,32 +11,30 @@ def get_env_url(key: str) -> str:
         url = f"https://{url}"
     return url
 
-TMS_BASE_URL  = get_env_url("TMS_BASE_URL")
-TMS_USERNAME  = os.environ.get("TMS_USERNAME", "")
-TMS_PASSWORD  = os.environ.get("TMS_PASSWORD", "")
+TMS_BASE_URL      = get_env_url("TMS_BASE_URL")
+TMS_USERNAME      = os.environ.get("TMS_USERNAME", "")
+TMS_PASSWORD      = os.environ.get("TMS_PASSWORD", "")
 ELTI_WORKER_URL   = get_env_url("ELTI_WORKER_URL")
 ELTI_UPDATE_TOKEN = os.environ.get("ELTI_UPDATE_TOKEN", "")
 
 TMS_API_BASE = "https://tms-production-api.azure.surbana.tech"
 ALARM_PAGE   = "/lift/tms-lmd-alarm"
 
-SGT    = timezone(timedelta(hours=8))
+SGT     = timezone(timedelta(hours=8))
 RBE_MAP = {"COMF": "COMF", "IOF": "IOF"}
 
-# 硬件版本字段的候选名称
 HW_VERSION_KEYS = (
     "hardwareVersion", "hardware_version", "hwVersion", "hw_version",
-    "Hardware Version", "HardwareVersion", "firmware", "version",
+    "Hardware Version", "HardwareVersion",
 )
-
-# 真实告警记录特征字段（至少命中一个才算告警数据）
 ALARM_RECORD_KEYS = {
-    "block", "Block", "blockNo", "block_no",
-    "lift",  "Lift",  "liftNo",  "lift_no", "liftId",
-    "address", "Address", "fullAddress",
-    "tc_code", "tcCode", "TC_Code",
-    "rbe_type", "rbeType", "alarmStatus",
+    "block", "Block", "blockNo",
+    "lift",  "Lift",  "liftNo", "liftId",
+    "address", "Address",
+    "tc_code", "tcCode",
+    "rbe_type", "rbeType",
     "hardwareVersion", "hardware_version", "hwVersion",
+    "Hardware Version",
 }
 
 
@@ -60,11 +58,14 @@ def _extract_list(data) -> list[dict] | None:
 
 
 # ──────────────────────────────────────────────────────────
-#  Browser automation
+#  Login  (wait for Angular to complete its own redirect)
 # ──────────────────────────────────────────────────────────
 
 def _do_login(page) -> str:
-    """登录 TMS，返回 access token（优先保留最长 token）。"""
+    """
+    登录 TMS。
+    等待条件：token 已捕获 AND URL 已离开 /login（Angular 完成 redirect）。
+    """
     token = ""
 
     def on_resp(response):
@@ -79,6 +80,7 @@ def _do_login(page) -> str:
                 return
             t = (data.get("accessToken") or data.get("token")
                  or data.get("access_token") or data.get("jwt") or "")
+            # 保留最长的 token（auth token 比 validation token 长）
             if isinstance(t, str) and len(t) > 100 and len(t) > len(token):
                 print(f"  [token] {response.url.split('?')[0]} ({len(t)} chars)")
                 token = t
@@ -87,96 +89,198 @@ def _do_login(page) -> str:
 
     page.on("response", on_resp)
 
-    print(f"  Navigating to login: {TMS_BASE_URL}/login")
+    print(f"  Logging in: {TMS_BASE_URL}/login")
     page.goto(f"{TMS_BASE_URL}/login", timeout=30_000)
     page.wait_for_load_state("networkidle", timeout=15_000)
 
-    page.fill("#loginformemail",   TMS_USERNAME)
+    page.fill("#loginformemail",    TMS_USERNAME)
     page.fill("#loginformpassword", TMS_PASSWORD)
     page.click('button[type="submit"]')
 
-    for i in range(20):
+    # 等待两个条件同时满足：token 已捕获 + Angular 完成 redirect（URL 离开 /login）
+    for i in range(30):
         page.wait_for_timeout(1000)
-        if token:
-            print(f"  [token] Ready after ~{i + 1}s")
+        cur = page.url
+        if token and "login" not in cur.lower():
+            print(f"  Login complete after ~{i + 1}s — redirected to: {cur}")
             break
+    else:
+        if not token:
+            raise RuntimeError("Login failed – token not captured. Check credentials.")
+        print(f"  Token captured but URL still: {page.url}  (will proceed anyway)")
 
-    if not token:
-        raise RuntimeError("Login failed – token not captured. Check TMS_USERNAME/TMS_PASSWORD.")
+    # 额外等待，让 Angular 完成 localStorage 写入和初始 API 调用
+    page.wait_for_load_state("networkidle", timeout=15_000)
+    page.wait_for_timeout(2000)
 
-    print(f"  Logged in. Current URL: {page.url}")
+    print(f"  Auth token: {len(token)} chars")
     return token
 
 
-def _dump_page_elements(page) -> None:
-    """打印页面上所有可交互元素，用于定位正确的选择器。"""
+# ──────────────────────────────────────────────────────────
+#  Navigate to alarm page (with retry if guard redirects)
+# ──────────────────────────────────────────────────────────
+
+def _navigate_to_alarm_page(page) -> bool:
+    alarm_url = f"{TMS_BASE_URL}{ALARM_PAGE}"
+
+    for attempt in range(1, 4):
+        print(f"  Navigate attempt {attempt}: {alarm_url}")
+        page.goto(alarm_url, timeout=30_000)
+        page.wait_for_load_state("networkidle", timeout=20_000)
+        page.wait_for_timeout(2000)
+
+        cur = page.url
+        print(f"  URL after navigation: {cur}")
+
+        if ALARM_PAGE in cur:
+            print(f"  Navigation succeeded.")
+            return True
+
+        print(f"  Guard redirected to {cur!r}, waiting 3s before retry…")
+        page.wait_for_timeout(3000)
+
+    print("  ERROR: Could not navigate to alarm page after 3 attempts.")
+    return False
+
+
+# ──────────────────────────────────────────────────────────
+#  Element inspector (debug only)
+# ──────────────────────────────────────────────────────────
+
+def _dump_elements(page) -> None:
     info = page.evaluate("""() => {
         const sel = [
-            'button', 'input', 'select', 'option', 'label',
-            'mat-radio-button', 'mat-option', 'mat-select',
-            'p-radiobutton', 'p-button', 'p-dropdown',
-            '[role="radio"]', '[role="button"]', '[role="option"]',
-            'a', 'li', 'span.ng-star-inserted'
+            'button','input','select','option','label','a',
+            'mat-select','mat-option','mat-radio-button',
+            'p-dropdown','p-radiobutton','.p-dropdown',
+            '[role="listbox"]','[role="option"]',
+            '[role="radio"]','[role="button"]','[role="combobox"]',
         ].join(',');
         return Array.from(document.querySelectorAll(sel))
             .filter(el => {
                 const t = (el.textContent || '').trim();
                 return t.length > 0 && t.length < 80;
             })
-            .slice(0, 40)
+            .slice(0, 50)
             .map(el => ({
                 tag:   el.tagName.toLowerCase(),
                 text:  (el.textContent || '').trim().substring(0, 60),
-                cls:   (el.className  || '').toString().substring(0, 50),
+                cls:   (el.className   || '').toString().substring(0, 50),
                 value: el.getAttribute('value') || '',
                 type:  el.getAttribute('type')  || '',
                 role:  el.getAttribute('role')  || '',
-                id:    el.getAttribute('id')    || '',
+                id:    el.id || '',
             }));
     }""")
-    print("  --- Page interactive elements ---")
+    print("  --- Page elements ---")
     for el in info:
         print(f"    {el}")
-    print("  --- end elements ---")
+    print("  --- end ---")
 
 
-def _js_click(page, *texts: str) -> str | None:
-    """用 JavaScript 在 DOM 中按文本内容查找并点击元素，返回命中描述或 None。"""
-    return page.evaluate("""(texts) => {
-        for (const text of texts) {
-            // 精确匹配叶子节点
-            const all = Array.from(document.querySelectorAll('*'));
-            for (const el of all) {
-                if (el.childElementCount === 0
-                    && el.textContent.trim() === text
-                    && el.offsetParent !== null) {
-                    el.dispatchEvent(new MouseEvent('click', {bubbles: true}));
-                    return 'exact:' + el.tagName + ':' + text;
-                }
+# ──────────────────────────────────────────────────────────
+#  Dropdown selection helper
+# ──────────────────────────────────────────────────────────
+
+def _select_dropdown_option(page, option_text: str) -> bool:
+    """
+    支持多种 dropdown 类型：
+      - native <select>
+      - Angular Material  mat-select / mat-option
+      - PrimeNG           p-dropdown / .p-dropdown-item
+      - custom listbox    [role="combobox"] / [role="option"]
+    """
+    # 1. Native select
+    try:
+        page.select_option("select", label=option_text, timeout=2000)
+        print(f"    [dropdown] selected via native <select>: {option_text!r}")
+        return True
+    except Exception:
+        pass
+
+    try:
+        page.select_option("select", value=option_text, timeout=2000)
+        print(f"    [dropdown] selected via native <select> value: {option_text!r}")
+        return True
+    except Exception:
+        pass
+
+    # 2. Angular Material mat-select
+    for trigger_sel in ("mat-select", "[role='combobox']", ".mat-select-trigger"):
+        try:
+            page.click(trigger_sel, timeout=2000)
+            page.wait_for_timeout(500)
+            page.click(f"mat-option:has-text('{option_text}')", timeout=3000)
+            print(f"    [dropdown] Angular Material: {option_text!r}")
+            return True
+        except Exception:
+            pass
+
+    # 3. PrimeNG p-dropdown
+    for trigger_sel in ("p-dropdown", ".p-dropdown", ".p-dropdown-trigger"):
+        try:
+            page.click(trigger_sel, timeout=2000)
+            page.wait_for_timeout(500)
+            page.click(f".p-dropdown-item:has-text('{option_text}')", timeout=3000)
+            print(f"    [dropdown] PrimeNG: {option_text!r}")
+            return True
+        except Exception:
+            pass
+
+    # 4. JavaScript: 找所有可见元素，点击文本匹配项
+    result = page.evaluate("""(text) => {
+        const candidates = Array.from(document.querySelectorAll(
+            'mat-option, option, li, [role="option"], .p-dropdown-item, .dropdown-item'
+        ));
+        for (const el of candidates) {
+            if (el.textContent.trim().includes(text) && el.offsetParent !== null) {
+                el.dispatchEvent(new MouseEvent('click', {bubbles: true}));
+                return el.tagName + ': ' + el.textContent.trim().substring(0, 40);
             }
         }
-        // 宽松包含匹配
-        for (const text of texts) {
-            const all = Array.from(document.querySelectorAll(
-                'button,[role="button"],[role="radio"],label,span,li,a'
-            ));
-            for (const el of all) {
-                if (el.textContent.trim().includes(text)
-                    && el.offsetParent !== null) {
-                    el.dispatchEvent(new MouseEvent('click', {bubbles: true}));
-                    return 'contains:' + el.tagName + ':' + text;
-                }
-            }
+        // 如果选项还没出现，先点一下触发器再找
+        const triggers = Array.from(document.querySelectorAll(
+            'mat-select, p-dropdown, [role="combobox"], select'
+        ));
+        if (triggers.length > 0) {
+            triggers[0].click();
+            return 'opened trigger: ' + triggers[0].tagName;
         }
         return null;
-    }""", list(texts))
+    }""", option_text)
+
+    if result:
+        print(f"    [dropdown] JS click: {result}")
+        if "opened trigger" in str(result):
+            # 触发器刚打开，再找一次 option
+            page.wait_for_timeout(600)
+            result2 = page.evaluate("""(text) => {
+                const candidates = Array.from(document.querySelectorAll(
+                    'mat-option, option, li, [role="option"], .p-dropdown-item'
+                ));
+                for (const el of candidates) {
+                    if (el.textContent.trim().includes(text) && el.offsetParent !== null) {
+                        el.dispatchEvent(new MouseEvent('click', {bubbles: true}));
+                        return el.tagName + ': ' + el.textContent.trim().substring(0, 40);
+                    }
+                }
+                return null;
+            }""", option_text)
+            if result2:
+                print(f"    [dropdown] JS click option after open: {result2}")
+                return True
+        else:
+            return True
+
+    return False
 
 
-def _retrieve_for_type(page, rbe_type: str) -> list[dict]:
-    """
-    在告警页面选择 COMF 或 IOF，点击 Retrieve Active Alarms，
-    捕获并返回 API 响应中的告警记录列表。
-    """
+# ──────────────────────────────────────────────────────────
+#  Retrieve one alarm type (COMF or IOF), stay on same page
+# ──────────────────────────────────────────────────────────
+
+def _retrieve_one(page, rbe_type: str) -> list[dict]:
     records: list[dict] = []
     api_log: list[str]  = []
 
@@ -185,61 +289,29 @@ def _retrieve_for_type(page, rbe_type: str) -> list[dict]:
             if TMS_API_BASE.replace("https://", "") not in response.url:
                 return
             short = response.url.split("?")[0]
-            data  = response.json() if response.status == 200 else None
-            lst   = _extract_list(data) if data else None
-
+            if response.status != 200:
+                api_log.append(f"{response.status} {short}")
+                return
+            data = response.json()
+            lst  = _extract_list(data)
             if lst:
                 keys = list(lst[0].keys())
-                api_log.append(f"{response.status} {short} → {len(lst)} rows, keys={keys}")
+                api_log.append(f"200 {short} → {len(lst)} rows  keys={keys}")
                 if ALARM_RECORD_KEYS & set(keys):
-                    print(f"    [capture] {short} → {len(lst)} records, keys={keys}")
+                    print(f"    [capture] {short} → {len(lst)} records  keys={keys}")
                     records.extend(lst)
             else:
-                api_log.append(f"{response.status} {short}")
+                api_log.append(f"200 {short}")
         except Exception:
             pass
 
     page.on("response", on_resp)
 
-    alarm_url = f"{TMS_BASE_URL}{ALARM_PAGE}"
-    print(f"  Navigating to: {alarm_url}")
-    page.goto(alarm_url, timeout=30_000)
-    page.wait_for_load_state("networkidle", timeout=20_000)
-    page.wait_for_timeout(2000)
-    print(f"  Page title: {page.title()!r}  URL: {page.url}")
-
-    # 第一次 COMF 时打印页面元素，便于排查
-    if rbe_type == "COMF":
-        _dump_page_elements(page)
-
-    # ── 选择告警类型（先试 Playwright 选择器，再用 JS）──
-    rbe_selected = False
-    for sel in [
-        f'input[value="{rbe_type}"]',
-        f'input[value="{rbe_type.lower()}"]',
-        f'mat-radio-button:has-text("{rbe_type}")',
-        f'[role="radio"]:has-text("{rbe_type}")',
-        f'label:has-text("{rbe_type}")',
-        f'button:has-text("{rbe_type}")',
-        f'li:has-text("{rbe_type}")',
-        f'span:has-text("{rbe_type}")',
-    ]:
-        try:
-            page.click(sel, timeout=2000)
-            print(f"  Selected {rbe_type} via: {sel!r}")
-            rbe_selected = True
-            break
-        except Exception:
-            pass
-
-    if not rbe_selected:
-        result = _js_click(page, rbe_type)
-        if result:
-            print(f"  Selected {rbe_type} via JS: {result}")
-            rbe_selected = True
-        else:
-            print(f"  WARNING: Could not find/click {rbe_type}")
-
+    # ── 选择告警类型 ──
+    print(f"  Selecting alarm type: {rbe_type}")
+    selected = _select_dropdown_option(page, rbe_type)
+    if not selected:
+        print(f"  WARNING: Could not select {rbe_type} from dropdown")
     page.wait_for_timeout(800)
 
     # ── 点击 Retrieve Active Alarms ──
@@ -248,8 +320,9 @@ def _retrieve_for_type(page, rbe_type: str) -> list[dict]:
         'button:has-text("Retrieve Active Alarms")',
         'button:has-text("Retrieve")',
         '[role="button"]:has-text("Retrieve")',
-        ':text("Retrieve Active Alarms")',
+        'span.mat-button-wrapper:has-text("Retrieve")',
         'span:has-text("Retrieve Active Alarms")',
+        ':text("Retrieve Active Alarms")',
     ]:
         try:
             page.click(sel, timeout=3000)
@@ -260,34 +333,48 @@ def _retrieve_for_type(page, rbe_type: str) -> list[dict]:
             pass
 
     if not retrieved:
-        result = _js_click(page,
-            "Retrieve Active Alarms", "Retrieve Active Alarm",
-            "RETRIEVE ACTIVE ALARMS", "Retrieve", "RETRIEVE")
+        result = page.evaluate("""() => {
+            const texts = ['Retrieve Active Alarms','Retrieve Active Alarm','RETRIEVE','Retrieve'];
+            for (const text of texts) {
+                const all = Array.from(document.querySelectorAll(
+                    'button,[role="button"],span.mat-button-wrapper,a'
+                ));
+                for (const el of all) {
+                    if (el.textContent.trim().includes(text) && el.offsetParent !== null) {
+                        el.dispatchEvent(new MouseEvent('click', {bubbles: true}));
+                        return text + ' via ' + el.tagName;
+                    }
+                }
+            }
+            return null;
+        }""")
         if result:
             print(f"  Clicked retrieve via JS: {result}")
             retrieved = True
         else:
-            print(f"  WARNING: Could not find/click Retrieve button")
+            print(f"  WARNING: Retrieve button not found")
 
     # 等待 API 响应
     try:
-        page.wait_for_load_state("networkidle", timeout=10_000)
+        page.wait_for_load_state("networkidle", timeout=12_000)
     except Exception:
         pass
-    page.wait_for_timeout(5000)
+    page.wait_for_timeout(4000)
 
     page.remove_listener("response", on_resp)
 
-    print(f"\n  --- API calls for {rbe_type} ---")
+    print(f"  --- API calls ({rbe_type}) ---")
     for line in api_log:
         print(f"    {line}")
-    print(f"  --- end ({len(records)} alarm records captured) ---\n")
-
+    print(f"  --- captured {len(records)} records ---")
     return records
 
 
+# ──────────────────────────────────────────────────────────
+#  Main browser flow
+# ──────────────────────────────────────────────────────────
+
 def collect_alarms() -> list[dict]:
-    """主采集函数：登录 → 依次检索 COMF / IOF → 返回合并的原始记录。"""
     all_records: list[dict] = []
 
     with sync_playwright() as p:
@@ -297,14 +384,23 @@ def collect_alarms() -> list[dict]:
 
         _do_login(page)
 
+        ok = _navigate_to_alarm_page(page)
+        if not ok:
+            browser.close()
+            return []
+
+        # 打印页面元素，便于排查选择器
+        _dump_elements(page)
+
+        # 在同一个已加载的页面上依次检索 COMF 和 IOF
         for rbe_type in ("COMF", "IOF"):
-            print(f"\n=== Retrieving {rbe_type} ===")
-            recs = _retrieve_for_type(page, rbe_type)
+            print(f"\n=== {rbe_type} ===")
+            recs = _retrieve_one(page, rbe_type)
             all_records.extend(recs)
 
         browser.close()
 
-    print(f"\nTotal raw records captured: {len(all_records)}")
+    print(f"\nTotal raw records: {len(all_records)}")
     return all_records
 
 
@@ -313,17 +409,16 @@ def collect_alarms() -> list[dict]:
 # ──────────────────────────────────────────────────────────
 
 def filter_ep1wm(raw: list[dict]) -> list[dict]:
-    """只保留 Hardware Version = EP1WM 的记录。"""
-    filtered = [
+    out = [
         r for r in raw
         if "EP1WM" in _get_field(r, *HW_VERSION_KEYS, default="").upper()
     ]
-    print(f"EP1WM filter: {len(raw)} → {len(filtered)} records")
-    if raw and not filtered:
-        sample_hw = _get_field(raw[0], *HW_VERSION_KEYS, default="(not found)")
-        print(f"  WARNING: No EP1WM records. Sample hardwareVersion field = {sample_hw!r}")
+    print(f"EP1WM filter: {len(raw)} → {len(out)} records")
+    if raw and not out:
+        hw_sample = _get_field(raw[0], *HW_VERSION_KEYS, default="(not found)")
+        print(f"  Sample hwVersion field value: {hw_sample!r}")
         print(f"  Sample record keys: {list(raw[0].keys())}")
-    return filtered
+    return out
 
 
 def transform(raw_alarms: list[dict]) -> dict:
@@ -415,11 +510,11 @@ def main() -> None:
     raw = collect_alarms()
 
     if raw:
-        print(f"\nSample record keys:   {list(raw[0].keys())}")
-        print(f"Sample record:        {raw[0]}")
+        print(f"\nSample keys:   {list(raw[0].keys())}")
+        print(f"Sample record: {raw[0]}")
         ep1wm = filter_ep1wm(raw)
     else:
-        print("WARNING: No records captured at all.")
+        print("WARNING: No records captured.")
         ep1wm = []
 
     payload = transform(ep1wm)
