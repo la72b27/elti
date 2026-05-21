@@ -24,6 +24,15 @@ SGT = timezone(timedelta(hours=8))
 RBE_MAP = {"COMF": "COMF", "IOF": "IOF"}
 
 
+def _get_field(alarm: dict, *keys: str, default: str = "") -> str:
+    """从 alarm 字典中按优先级尝试多个字段名，兼容 snake_case 和 camelCase。"""
+    for key in keys:
+        val = alarm.get(key)
+        if val is not None and str(val).strip():
+            return str(val).strip()
+    return default
+
+
 def get_token_via_browser() -> str:
     token = None
 
@@ -36,17 +45,24 @@ def get_token_via_browser() -> str:
             nonlocal token
             try:
                 url = response.url
-                if TMS_API_BASE.replace("https://", "") in url and response.status == 200:
-                    data = response.json()
-                    if isinstance(data, dict):
-                        t = data.get("accessToken") or data.get("token") or data.get("access_token")
-                        if t and isinstance(t, str) and len(t) > 100:
-                            token = t
+                if TMS_API_BASE.replace("https://", "") not in url:
+                    return
+                if response.status != 200:
+                    return
+                data = response.json()
+                if not isinstance(data, dict):
+                    return
+                t = (data.get("accessToken") or data.get("token")
+                     or data.get("access_token") or data.get("jwt"))
+                if t and isinstance(t, str) and len(t) > 100:
+                    print(f"  [token] Captured from: {url.split('?')[0]} ({len(t)} chars)")
+                    token = t
             except Exception:
                 pass
 
         page.on("response", handle_response)
 
+        print(f"Navigating to login page: {TMS_BASE_URL}/login")
         page.goto(f"{TMS_BASE_URL}/login", timeout=30000)
         page.wait_for_load_state("networkidle", timeout=15000)
 
@@ -54,15 +70,28 @@ def get_token_via_browser() -> str:
         page.fill("#loginformpassword", TMS_PASSWORD)
         page.click('button[type="submit"]')
 
-        page.wait_for_timeout(8000)
+        # 逐秒轮询，捕获到 token 后提前退出，最多等 15 秒
+        for i in range(15):
+            page.wait_for_timeout(1000)
+            if token:
+                print(f"  [token] Captured after ~{i + 1}s")
+                break
 
-        if "login" in page.url.lower():
+        current_url = page.url
+        print(f"Current URL after login: {current_url}")
+
+        if "login" in current_url.lower():
             raise RuntimeError("Login failed - check TMS_USERNAME and TMS_PASSWORD")
+
+        # 登录成功但仍未捕获到 token，再额外等 5 秒
+        if not token:
+            print("Token not yet captured, waiting extra 5s for deferred auth response...")
+            page.wait_for_timeout(5000)
 
         browser.close()
 
     if not token:
-        raise RuntimeError("Login succeeded but could not capture auth token")
+        raise RuntimeError("Login succeeded but could not capture auth token from any API response")
 
     return token
 
@@ -75,48 +104,65 @@ def fetch_alarms(token: str) -> list[dict]:
             headers={"Authorization": f"Bearer {token}"},
             timeout=30,
         )
+        print(f"Alarms API response status: {resp.status_code}")
         resp.raise_for_status()
         data = resp.json()
-        if isinstance(data, list):
-            return data
-        if isinstance(data, dict) and "data" in data:
-            return data["data"]
-        return []
+
+    if isinstance(data, list):
+        return data
+    if isinstance(data, dict):
+        # 按常见 key 依次尝试
+        for key in ("data", "alarms", "items", "results", "records"):
+            if key in data and isinstance(data[key], list):
+                return data[key]
+        print(f"Unexpected response structure, top-level keys: {list(data.keys())}")
+    return []
 
 
 def transform(raw_alarms: list[dict]) -> dict:
     records = []
     for alarm in raw_alarms:
-        rbe_raw = str(alarm.get("rbe_type", "")).upper()
+        # RBE 类型：同时兼容 snake_case / camelCase / 其他常见变体
+        rbe_raw = _get_field(
+            alarm,
+            "rbe_type", "rbeType", "rbe", "alarmType", "alarm_type",
+            default=""
+        ).upper()
         rbe = rbe_raw if rbe_raw in RBE_MAP else "COMF"
 
-        tc_raw = str(alarm.get("tc_code", ""))
+        tc_raw = _get_field(alarm, "tc_code", "tcCode", "TC_Code", "tc", default="")
         tc_display = tc_raw if tc_raw else "-"
 
-        status_date_raw = alarm.get("status_date") or alarm.get("updated_at") or ""
+        # 时间字段：尝试多种命名
+        status_date_raw = (
+            alarm.get("status_date") or alarm.get("statusDate")
+            or alarm.get("updated_at") or alarm.get("updatedAt")
+            or alarm.get("created_at") or alarm.get("createdAt")
+            or ""
+        )
         try:
-            dt = datetime.fromisoformat(status_date_raw.replace("Z", "+00:00"))
+            dt = datetime.fromisoformat(str(status_date_raw).replace("Z", "+00:00"))
             status_date = dt.astimezone(SGT).strftime("%Y-%m-%d %H:%M")
         except Exception:
-            status_date = status_date_raw[:16] if status_date_raw else "-"
+            status_date = str(status_date_raw)[:16] if status_date_raw else "-"
 
         records.append(
             {
                 "TC_Display": tc_display,
-                "Pfx": str(alarm.get("prefix", "")),
-                "Block": str(alarm.get("block", "")),
-                "Lift": str(alarm.get("lift", "")),
-                "Address": str(alarm.get("address", "")),
-                "LCOY": str(alarm.get("lcoy", "")),
+                "Pfx":        _get_field(alarm, "prefix",  "Prefix",  "pfx"),
+                "Block":      _get_field(alarm, "block",   "Block",   "blockNo",  "block_no"),
+                "Lift":       _get_field(alarm, "lift",    "Lift",    "liftNo",   "lift_no",   "liftId", "lift_id"),
+                "Address":    _get_field(alarm, "address", "Address", "fullAddress", "full_address"),
+                "LCOY":       _get_field(alarm, "lcoy",    "LCOY",    "Lcoy"),
                 "Status Date": status_date,
-                "RBE": rbe,
+                "RBE":        rbe,
                 "RBE_Display": rbe,
-                "Status": str(alarm.get("status", "SET")),
+                "Status":     _get_field(alarm, "status", "Status", "alarmStatus", "alarm_status", default="SET"),
             }
         )
 
     comf_records = [r for r in records if r["RBE"] == "COMF"]
-    iof_records = [r for r in records if r["RBE"] == "IOF"]
+    iof_records  = [r for r in records if r["RBE"] == "IOF"]
 
     tc_stats: dict[str, dict[str, int]] = {"COMF": {}, "IOF": {}}
     for r in comf_records:
@@ -129,10 +175,10 @@ def transform(raw_alarms: list[dict]) -> dict:
     now_sgt = datetime.now(SGT).strftime("%Y-%m-%d %H:%M")
 
     return {
-        "records": records,
-        "comf_count": len(comf_records),
-        "iof_count": len(iof_records),
-        "tc_stats": tc_stats,
+        "records":     records,
+        "comf_count":  len(comf_records),
+        "iof_count":   len(iof_records),
+        "tc_stats":    tc_stats,
         "last_updated": now_sgt,
     }
 
@@ -161,13 +207,20 @@ def main() -> None:
         print("ERROR: ELTI_WORKER_URL is empty. Please check GitHub Secrets.")
         return
 
+    print(f"TMS_BASE_URL:    {TMS_BASE_URL}")
+    print(f"ELTI_WORKER_URL: {ELTI_WORKER_URL}")
+
     token = get_token_via_browser()
     print(f"Auth token captured ({len(token)} chars)")
 
     raw_alarms = fetch_alarms(token)
     print(f"Fetched {len(raw_alarms)} alarms from TMS")
+    if raw_alarms:
+        print(f"Sample alarm keys:          {list(raw_alarms[0].keys())}")
+        print(f"Sample alarm (first record): {raw_alarms[0]}")
 
     payload = transform(raw_alarms)
+    print(f"Transformed: comf_count={payload['comf_count']}, iof_count={payload['iof_count']}")
     push_to_worker(payload)
 
 
