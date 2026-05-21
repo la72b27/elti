@@ -108,11 +108,74 @@ def _do_login(page) -> str:
     return token
 
 
+def _dump_page_elements(page) -> None:
+    """打印页面上所有可交互元素，用于定位正确的选择器。"""
+    info = page.evaluate("""() => {
+        const sel = [
+            'button', 'input', 'select', 'option', 'label',
+            'mat-radio-button', 'mat-option', 'mat-select',
+            'p-radiobutton', 'p-button', 'p-dropdown',
+            '[role="radio"]', '[role="button"]', '[role="option"]',
+            'a', 'li', 'span.ng-star-inserted'
+        ].join(',');
+        return Array.from(document.querySelectorAll(sel))
+            .filter(el => {
+                const t = (el.textContent || '').trim();
+                return t.length > 0 && t.length < 80;
+            })
+            .slice(0, 40)
+            .map(el => ({
+                tag:   el.tagName.toLowerCase(),
+                text:  (el.textContent || '').trim().substring(0, 60),
+                cls:   (el.className  || '').toString().substring(0, 50),
+                value: el.getAttribute('value') || '',
+                type:  el.getAttribute('type')  || '',
+                role:  el.getAttribute('role')  || '',
+                id:    el.getAttribute('id')    || '',
+            }));
+    }""")
+    print("  --- Page interactive elements ---")
+    for el in info:
+        print(f"    {el}")
+    print("  --- end elements ---")
+
+
+def _js_click(page, *texts: str) -> str | None:
+    """用 JavaScript 在 DOM 中按文本内容查找并点击元素，返回命中描述或 None。"""
+    return page.evaluate("""(texts) => {
+        for (const text of texts) {
+            // 精确匹配叶子节点
+            const all = Array.from(document.querySelectorAll('*'));
+            for (const el of all) {
+                if (el.childElementCount === 0
+                    && el.textContent.trim() === text
+                    && el.offsetParent !== null) {
+                    el.dispatchEvent(new MouseEvent('click', {bubbles: true}));
+                    return 'exact:' + el.tagName + ':' + text;
+                }
+            }
+        }
+        // 宽松包含匹配
+        for (const text of texts) {
+            const all = Array.from(document.querySelectorAll(
+                'button,[role="button"],[role="radio"],label,span,li,a'
+            ));
+            for (const el of all) {
+                if (el.textContent.trim().includes(text)
+                    && el.offsetParent !== null) {
+                    el.dispatchEvent(new MouseEvent('click', {bubbles: true}));
+                    return 'contains:' + el.tagName + ':' + text;
+                }
+            }
+        }
+        return null;
+    }""", list(texts))
+
+
 def _retrieve_for_type(page, rbe_type: str) -> list[dict]:
     """
     在告警页面选择 COMF 或 IOF，点击 Retrieve Active Alarms，
     捕获并返回 API 响应中的告警记录列表。
-    同时打印页面上所有 API 调用，便于排查。
     """
     records: list[dict] = []
     api_log: list[str]  = []
@@ -124,83 +187,97 @@ def _retrieve_for_type(page, rbe_type: str) -> list[dict]:
             short = response.url.split("?")[0]
             data  = response.json() if response.status == 200 else None
             lst   = _extract_list(data) if data else None
-            status_str = str(response.status)
 
             if lst:
                 keys = list(lst[0].keys())
-                api_log.append(f"{status_str} {short} → {len(lst)} rows, keys={keys}")
+                api_log.append(f"{response.status} {short} → {len(lst)} rows, keys={keys}")
                 if ALARM_RECORD_KEYS & set(keys):
-                    print(f"    [capture] {short} → {len(lst)} alarm records, keys={keys}")
+                    print(f"    [capture] {short} → {len(lst)} records, keys={keys}")
                     records.extend(lst)
             else:
-                api_log.append(f"{status_str} {short}")
+                api_log.append(f"{response.status} {short}")
         except Exception:
             pass
 
     page.on("response", on_resp)
 
-    # 每次都重新导航，确保页面状态干净
     alarm_url = f"{TMS_BASE_URL}{ALARM_PAGE}"
     print(f"  Navigating to: {alarm_url}")
     page.goto(alarm_url, timeout=30_000)
     page.wait_for_load_state("networkidle", timeout=20_000)
     page.wait_for_timeout(2000)
-
     print(f"  Page title: {page.title()!r}  URL: {page.url}")
 
-    # ── 选择告警类型 ──
+    # 第一次 COMF 时打印页面元素，便于排查
+    if rbe_type == "COMF":
+        _dump_page_elements(page)
+
+    # ── 选择告警类型（先试 Playwright 选择器，再用 JS）──
     rbe_selected = False
-    rbe_selectors = [
+    for sel in [
         f'input[value="{rbe_type}"]',
         f'input[value="{rbe_type.lower()}"]',
-        f'button:has-text("{rbe_type}")',
-        f'label:has-text("{rbe_type}")',
         f'mat-radio-button:has-text("{rbe_type}")',
-        f'p-radiobutton:has-text("{rbe_type}")',
+        f'[role="radio"]:has-text("{rbe_type}")',
+        f'label:has-text("{rbe_type}")',
+        f'button:has-text("{rbe_type}")',
         f'li:has-text("{rbe_type}")',
-        f':text-is("{rbe_type}")',
-    ]
-    for sel in rbe_selectors:
+        f'span:has-text("{rbe_type}")',
+    ]:
         try:
-            page.click(sel, timeout=3000)
+            page.click(sel, timeout=2000)
             print(f"  Selected {rbe_type} via: {sel!r}")
             rbe_selected = True
             break
         except Exception:
             pass
-    if not rbe_selected:
-        print(f"  WARNING: Could not click {rbe_type} selector – will try retrieve anyway")
 
-    page.wait_for_timeout(500)
+    if not rbe_selected:
+        result = _js_click(page, rbe_type)
+        if result:
+            print(f"  Selected {rbe_type} via JS: {result}")
+            rbe_selected = True
+        else:
+            print(f"  WARNING: Could not find/click {rbe_type}")
+
+    page.wait_for_timeout(800)
 
     # ── 点击 Retrieve Active Alarms ──
     retrieved = False
-    retrieve_selectors = [
+    for sel in [
         'button:has-text("Retrieve Active Alarms")',
         'button:has-text("Retrieve")',
-        'button:has-text("retrieve")',
-        'a:has-text("Retrieve")',
+        '[role="button"]:has-text("Retrieve")',
         ':text("Retrieve Active Alarms")',
-        'input[type="submit"]',
-    ]
-    for sel in retrieve_selectors:
+        'span:has-text("Retrieve Active Alarms")',
+    ]:
         try:
-            page.click(sel, timeout=4000)
+            page.click(sel, timeout=3000)
             print(f"  Clicked retrieve via: {sel!r}")
             retrieved = True
             break
         except Exception:
             pass
+
     if not retrieved:
-        print(f"  WARNING: Could not click Retrieve button")
+        result = _js_click(page,
+            "Retrieve Active Alarms", "Retrieve Active Alarm",
+            "RETRIEVE ACTIVE ALARMS", "Retrieve", "RETRIEVE")
+        if result:
+            print(f"  Clicked retrieve via JS: {result}")
+            retrieved = True
+        else:
+            print(f"  WARNING: Could not find/click Retrieve button")
 
     # 等待 API 响应
-    page.wait_for_timeout(6000)
+    try:
+        page.wait_for_load_state("networkidle", timeout=10_000)
+    except Exception:
+        pass
+    page.wait_for_timeout(5000)
 
-    # 移除监听，避免重复计数
     page.remove_listener("response", on_resp)
 
-    # 打印本次观察到的所有 API 调用（排查用）
     print(f"\n  --- API calls for {rbe_type} ---")
     for line in api_log:
         print(f"    {line}")
