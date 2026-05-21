@@ -17,8 +17,8 @@ TMS_PASSWORD = os.environ.get("TMS_PASSWORD", "")
 ELTI_WORKER_URL = get_env_url("ELTI_WORKER_URL")
 ELTI_UPDATE_TOKEN = os.environ.get("ELTI_UPDATE_TOKEN", "")
 
-TMS_AUTH_URL = f"{TMS_BASE_URL}/auth/api/v1"
-TMS_API_URL = f"{TMS_BASE_URL}/portalapi"
+TMS_AUTH_URL = "https://tms-production-api.azure.surbana.tech/auth/api/v1"
+TMS_API_URL = "https://tms-production-api.azure.surbana.tech/portalapi"
 
 SGT = timezone(timedelta(hours=8))
 
