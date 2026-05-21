@@ -111,10 +111,12 @@ HTML_TEMPLATE = """
         // Initialize original index for sorting
         data.records.forEach((r, i) => r._index = i + 1);
 
-        // 确保 Status Date 时间部分零补位，例如 "2024-05-21 9:3" → "2024-05-21 09:03"
+        // 确保 Status Date 时间部分零补位，兼容所有日期格式
+        // 例如 "14 May 2026 13:4" → "14 May 2026 13:40"
+        //      "2026-05-14 9:3"   → "2026-05-14 09:03"
         function fmtDate(s) {
             if (!s || s === '-') return s;
-            const m = s.match(/^(\d{4}-\d{2}-\d{2})\s+(\d{1,2}):(\d{1,2})/);
+            const m = s.match(/^(.*)\s+(\d{1,2}):(\d{1,2})$/);
             if (m) return m[1] + ' ' + m[2].padStart(2,'0') + ':' + m[3].padStart(2,'0');
             return s;
         }
