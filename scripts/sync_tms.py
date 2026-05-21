@@ -4,7 +4,9 @@ import httpx
 from datetime import datetime, timezone, timedelta
 
 def get_env_url(key: str) -> str:
-    url = os.environ.get(key, "").strip().rstrip("/")
+    val = os.environ.get(key, "").strip().strip("`\"'")
+    print(f"DEBUG: Reading {key}, length: {len(val)}, value-prefix: {val[:10]!r}")
+    url = val.rstrip("/")
     if url and not url.startswith(("http://", "https://")):
         url = f"https://{url}"
     return url
@@ -111,6 +113,13 @@ def push_to_worker(payload: dict) -> None:
 
 
 def main() -> None:
+    if not TMS_BASE_URL:
+        print("ERROR: TMS_BASE_URL is empty. Please check GitHub Secrets.")
+        return
+    if not ELTI_WORKER_URL:
+        print("ERROR: ELTI_WORKER_URL is empty. Please check GitHub Secrets.")
+        return
+
     with httpx.Client() as client:
         token = get_tms_token(client)
         raw_alarms = fetch_alarms(client, token)
