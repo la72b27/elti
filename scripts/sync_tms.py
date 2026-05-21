@@ -172,12 +172,18 @@ def build_payload(comf_records: list[dict], iof_records: list[dict]) -> dict:
     records = []
     for r in comf_records + iof_records:
         status_date_raw = r.get("Status Date", "")
-        # 尝试解析 ISO 时间；如果已经是显示格式则直接保留前16字符
-        try:
-            dt = datetime.fromisoformat(status_date_raw.replace("Z", "+00:00"))
-            status_date = dt.astimezone(SGT).strftime("%Y-%m-%d %H:%M")
-        except Exception:
-            status_date = status_date_raw[:16] if status_date_raw else "-"
+        # 优先解析 ISO 格式；否则直接规整为零补位的 "YYYY-MM-DD HH:MM"
+        import re as _re
+        _m = _re.match(r'^(\d{4}-\d{2}-\d{2})\s+(\d{1,2}):(\d{1,2})', status_date_raw or '')
+        if _m:
+            status_date = (f"{_m.group(1)} "
+                           f"{_m.group(2).zfill(2)}:{_m.group(3).zfill(2)}")
+        else:
+            try:
+                dt = datetime.fromisoformat(status_date_raw.replace("Z", "+00:00"))
+                status_date = dt.astimezone(SGT).strftime("%Y-%m-%d %H:%M")
+            except Exception:
+                status_date = status_date_raw[:16] if status_date_raw else "-"
 
         records.append({
             "TC_Display":  r.get("TC_Display", "-"),
