@@ -203,6 +203,118 @@ def _extract_all_tables(page) -> list[dict]:
 
 
 # ──────────────────────────────────────────────────────────
+#  Pagination helpers
+# ──────────────────────────────────────────────────────────
+
+def _pagination_state(page) -> dict:
+    """
+    返回当前分页状态：
+      {current, total, has_next, has_prev, page_info_text}
+    通过检查 <li class="page-item disabled"> 包裹 Next/Previous 的 <a> 判断。
+    """
+    return page.evaluate("""() => {
+        // Bootstrap pagination: <li class="page-item [disabled]"><a class="page-link">Next</a></li>
+        let hasNext = false, hasPrev = false, pageText = '';
+        document.querySelectorAll('li.page-item, li').forEach(li => {
+            const a = li.querySelector('a.page-link');
+            if (!a) return;
+            const t = a.textContent.trim();
+            const disabled = li.classList.contains('disabled');
+            if (t === 'Next' || t === '>|')    hasNext = !disabled;
+            if (t === 'Previous' || t === '|<') hasPrev = !disabled;
+        });
+        // Also try plain <a class="page-link"> without <li> wrapper
+        if (!hasNext) {
+            document.querySelectorAll('a.page-link').forEach(a => {
+                const t = a.textContent.trim();
+                if ((t === 'Next' || t === '>|') && !a.closest('li.disabled')) hasNext = true;
+            });
+        }
+        // Try to find current page indicator text (e.g. "Page 1 of 5" or "1-20 / 100")
+        const pageInfoEl = document.querySelector(
+            '.pagination-info, .page-info, [class*="page-info"], [class*="pageInfo"]'
+        );
+        if (pageInfoEl) pageText = pageInfoEl.textContent.trim();
+        return {hasNext, hasPrev, pageText};
+    }""")
+
+
+def _click_next_page(page) -> bool:
+    """
+    点击 Next 或 >| 分页按钮，等待新数据渲染，返回是否成功。
+    """
+    clicked = page.evaluate("""() => {
+        // Try Bootstrap li > a pattern first
+        for (const li of document.querySelectorAll('li.page-item')) {
+            if (li.classList.contains('disabled')) continue;
+            const a = li.querySelector('a.page-link');
+            if (a && (a.textContent.trim() === 'Next' || a.textContent.trim() === '>|')) {
+                a.click();
+                return true;
+            }
+        }
+        // Fallback: plain <a class="page-link">
+        for (const a of document.querySelectorAll('a.page-link')) {
+            const t = a.textContent.trim();
+            if ((t === 'Next' || t === '>|') && !a.closest('li.disabled')) {
+                a.click();
+                return true;
+            }
+        }
+        return false;
+    }""")
+    if clicked:
+        page.wait_for_timeout(1500)
+        try:
+            page.wait_for_load_state("networkidle", timeout=8_000)
+        except Exception:
+            pass
+        page.wait_for_timeout(500)
+    return bool(clicked)
+
+
+def _extract_alarm_rows_all_pages(page, rbe_hint: str, max_pages: int = 200) -> list[dict]:
+    """
+    从当前 tab/section 提取所有分页数据。
+    自动翻页直到 Next 按钮被禁用或超过 max_pages。
+    """
+    ALARM_HEADERS = {"TC", "Block", "Address", "Status Date", "Bits Description"}
+    all_rows: list[dict] = []
+    page_num = 1
+
+    while True:
+        tables = _extract_all_tables(page)
+        page_rows: list[dict] = []
+        for tbl in tables:
+            if ALARM_HEADERS & set(tbl["headers"]):
+                page_rows.extend(tbl["rows"])
+
+        if page_rows:
+            for row in page_rows:
+                row["_rbe_hint"] = rbe_hint
+            all_rows.extend(page_rows)
+
+        state = _pagination_state(page)
+        print(f"    Page {page_num}: {len(page_rows)} rows | "
+              f"next={state['hasNext']} {state['pageText']}")
+
+        if not state["hasNext"] or not page_rows:
+            break
+        if page_num >= max_pages:
+            print(f"    WARNING: reached max_pages={max_pages}, stopping")
+            break
+
+        if not _click_next_page(page):
+            print("    Could not click Next, stopping pagination")
+            break
+
+        page_num += 1
+
+    print(f"  Total rows across {page_num} page(s): {len(all_rows)}")
+    return all_rows
+
+
+# ──────────────────────────────────────────────────────────
 #  Click COMF / IOF tab (if tabs exist)
 # ──────────────────────────────────────────────────────────
 
@@ -260,7 +372,7 @@ def collect_alarms() -> tuple[list[dict], dict[str, str]]:
         # ── 诊断：找 COMF/IOF/Retrieve 关键字元素 ──
         _find_keyword_elements(page, "COMF", "IOF", "Retrieve", "Active Alarm")
 
-        # ── 尝试依次点击 COMF 和 IOF tab，每次提取表格数据 ──
+        # ── 依次点击 COMF 和 IOF tab，逐页提取所有数据 ──
         for rbe_type in ("COMF", "IOF"):
             print(f"\n=== {rbe_type} ===")
             clicked = _click_tab(page, rbe_type)
@@ -271,20 +383,18 @@ def collect_alarms() -> tuple[list[dict], dict[str, str]]:
                 except Exception:
                     pass
 
+            # 先打印一次表格结构，便于诊断
             tables = _extract_all_tables(page)
             print(f"  Tables found: {len(tables)}")
             for tbl in tables:
-                print(f"  Table[{tbl['index']}]: {tbl['rowCount']} rows, headers={tbl['headers']}")
+                print(f"  Table[{tbl['index']}]: {tbl['rowCount']} rows, "
+                      f"headers={tbl['headers']}")
                 if tbl["rows"]:
                     print(f"    Sample row: {tbl['rows'][0]}")
-                # 含目标列名的表格才是告警记录表
-                hdrs = set(tbl["headers"])
-                if hdrs & {"TC", "Block", "Address", "Status Date", "Bits Description"}:
-                    print(f"  → Alarm table identified, extracting {tbl['rowCount']} rows")
-                    # 给每行打上 RBE 标记（后续用 Bits Description 覆盖）
-                    for row in tbl["rows"]:
-                        row["_rbe_hint"] = rbe_type
-                    all_rows.extend(tbl["rows"])
+
+            # 带分页的完整提取
+            rows = _extract_alarm_rows_all_pages(page, rbe_hint=rbe_type)
+            all_rows.extend(rows)
 
         browser.close()
 
