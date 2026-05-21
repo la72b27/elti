@@ -2,6 +2,7 @@ import os
 import json
 import httpx
 from datetime import datetime, timezone, timedelta
+from playwright.sync_api import sync_playwright
 
 def get_env_url(key: str) -> str:
     val = os.environ.get(key, "").strip().strip("`\"'")
@@ -17,36 +18,69 @@ TMS_PASSWORD = os.environ.get("TMS_PASSWORD", "")
 ELTI_WORKER_URL = get_env_url("ELTI_WORKER_URL")
 ELTI_UPDATE_TOKEN = os.environ.get("ELTI_UPDATE_TOKEN", "")
 
-TMS_AUTH_URL = "https://tms-production-api.azure.surbana.tech/auth/api/v1"
-TMS_API_URL = "https://tms-production-api.azure.surbana.tech/portalapi"
-TMS_LOGIN_URL = f"{TMS_AUTH_URL}/user"
+TMS_API_HOST = "tms-production-api.azure.surbana.tech"
 
 SGT = timezone(timedelta(hours=8))
 
 RBE_MAP = {"COMF": "COMF", "IOF": "IOF"}
 
 
-def get_tms_token(client: httpx.Client) -> str:
-    resp = client.post(
-        TMS_LOGIN_URL,
-        json={"username": TMS_USERNAME, "password": TMS_PASSWORD, "applicationId": "tms-public"},
-        timeout=30,
-    )
-    print(f"DEBUG login status: {resp.status_code}")
-    print(f"DEBUG login body: {resp.text[:500]}")
-    resp.raise_for_status()
-    data = resp.json()
-    return data.get("accessToken") or data.get("token") or data.get("access_token", "")
+def fetch_alarms_via_browser() -> list[dict]:
+    captured = {}
 
+    with sync_playwright() as p:
+        browser = p.chromium.launch(headless=True)
+        context = browser.new_context(ignore_https_errors=True)
+        page = context.new_page()
 
-def fetch_alarms(client: httpx.Client, token: str) -> list[dict]:
-    resp = client.get(
-        f"{TMS_API_URL}/tmsalarm/current-rbe-status",
-        headers={"Authorization": f"Bearer {token}"},
-        timeout=30,
-    )
-    resp.raise_for_status()
-    return resp.json()
+        def handle_response(response):
+            try:
+                url = response.url
+                if TMS_API_HOST in url and "tmsalarm" in url and response.status == 200:
+                    data = response.json()
+                    print(f"DEBUG intercepted: {url} → {type(data)}")
+                    if isinstance(data, list):
+                        captured["alarms"] = data
+                    elif isinstance(data, dict) and "data" in data:
+                        captured["alarms"] = data["data"]
+            except Exception as e:
+                print(f"DEBUG response parse error: {e}")
+
+        page.on("response", handle_response)
+
+        print(f"DEBUG: Navigating to {TMS_BASE_URL}/login")
+        page.goto(f"{TMS_BASE_URL}/login", timeout=30000)
+        page.wait_for_load_state("networkidle", timeout=15000)
+
+        print("DEBUG: Filling login form")
+        page.fill('input[name="username"], input[type="email"], input[id="username"]', TMS_USERNAME)
+        page.fill('input[name="password"], input[type="password"]', TMS_PASSWORD)
+        page.click('button[type="submit"]')
+
+        print("DEBUG: Waiting for post-login navigation")
+        page.wait_for_load_state("networkidle", timeout=30000)
+        print(f"DEBUG: Current URL after login: {page.url}")
+
+        if "login" in page.url.lower():
+            raise RuntimeError("Login failed - still on login page after submit")
+
+        print("DEBUG: Navigating to alarm page")
+        page.goto(f"{TMS_BASE_URL}/alarm-monitoring", timeout=30000)
+        page.wait_for_load_state("networkidle", timeout=20000)
+
+        if not captured.get("alarms"):
+            page.goto(f"{TMS_BASE_URL}/rbe-alarm", timeout=30000)
+            page.wait_for_load_state("networkidle", timeout=20000)
+
+        if not captured.get("alarms"):
+            page.goto(f"{TMS_BASE_URL}/dashboard", timeout=30000)
+            page.wait_for_load_state("networkidle", timeout=20000)
+
+        browser.close()
+
+    alarms = captured.get("alarms", [])
+    print(f"DEBUG: Captured {len(alarms)} alarms")
+    return alarms
 
 
 def transform(raw_alarms: list[dict]) -> dict:
@@ -126,10 +160,7 @@ def main() -> None:
         print("ERROR: ELTI_WORKER_URL is empty. Please check GitHub Secrets.")
         return
 
-    with httpx.Client(verify=False) as client:
-        token = get_tms_token(client)
-        raw_alarms = fetch_alarms(client, token)
-
+    raw_alarms = fetch_alarms_via_browser()
     payload = transform(raw_alarms)
     push_to_worker(payload)
 
