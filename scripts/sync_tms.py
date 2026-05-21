@@ -32,6 +32,8 @@ def get_tms_token(client: httpx.Client) -> str:
         json={"username": TMS_USERNAME, "password": TMS_PASSWORD, "applicationId": "tms-public"},
         timeout=30,
     )
+    print(f"DEBUG login status: {resp.status_code}")
+    print(f"DEBUG login body: {resp.text[:500]}")
     resp.raise_for_status()
     data = resp.json()
     return data.get("accessToken") or data.get("token") or data.get("access_token", "")
