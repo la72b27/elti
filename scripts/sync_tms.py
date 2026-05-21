@@ -29,7 +29,7 @@ RBE_MAP = {"COMF": "COMF", "IOF": "IOF"}
 def get_tms_token(client: httpx.Client) -> str:
     resp = client.post(
         TMS_LOGIN_URL,
-        json={"username": TMS_USERNAME, "password": TMS_PASSWORD},
+        json={"username": TMS_USERNAME, "password": TMS_PASSWORD, "applicationId": "tms-public"},
         timeout=30,
     )
     resp.raise_for_status()
