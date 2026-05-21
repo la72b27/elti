@@ -3,10 +3,16 @@ import json
 import httpx
 from datetime import datetime, timezone, timedelta
 
-TMS_BASE_URL = os.environ["TMS_BASE_URL"].rstrip("/")
-TMS_USERNAME = os.environ["TMS_USERNAME"]
-TMS_PASSWORD = os.environ["TMS_PASSWORD"]
-ELTI_WORKER_URL = os.environ["ELTI_WORKER_URL"].rstrip("/")
+def get_env_url(key: str) -> str:
+    url = os.environ.get(key, "").strip().rstrip("/")
+    if url and not url.startswith(("http://", "https://")):
+        url = f"https://{url}"
+    return url
+
+TMS_BASE_URL = get_env_url("TMS_BASE_URL")
+TMS_USERNAME = os.environ.get("TMS_USERNAME", "")
+TMS_PASSWORD = os.environ.get("TMS_PASSWORD", "")
+ELTI_WORKER_URL = get_env_url("ELTI_WORKER_URL")
 ELTI_UPDATE_TOKEN = os.environ.get("ELTI_UPDATE_TOKEN", "")
 
 SGT = timezone(timedelta(hours=8))
