@@ -17,6 +17,9 @@ TMS_PASSWORD = os.environ.get("TMS_PASSWORD", "")
 ELTI_WORKER_URL = get_env_url("ELTI_WORKER_URL")
 ELTI_UPDATE_TOKEN = os.environ.get("ELTI_UPDATE_TOKEN", "")
 
+TMS_AUTH_URL = f"{TMS_BASE_URL}/auth/api/v1"
+TMS_API_URL = f"{TMS_BASE_URL}/portalapi"
+
 SGT = timezone(timedelta(hours=8))
 
 RBE_MAP = {"COMF": "COMF", "IOF": "IOF"}
@@ -24,19 +27,19 @@ RBE_MAP = {"COMF": "COMF", "IOF": "IOF"}
 
 def get_tms_token(client: httpx.Client) -> str:
     resp = client.post(
-        f"{TMS_BASE_URL}/api/auth/login",
+        f"{TMS_AUTH_URL}/authentication",
         json={"username": TMS_USERNAME, "password": TMS_PASSWORD},
         timeout=30,
     )
     resp.raise_for_status()
-    return resp.json()["token"]
+    data = resp.json()
+    return data.get("accessToken") or data.get("token") or data.get("access_token", "")
 
 
 def fetch_alarms(client: httpx.Client, token: str) -> list[dict]:
     resp = client.get(
-        f"{TMS_BASE_URL}/api/alarms",
+        f"{TMS_API_URL}/tmsalarm/current-rbe-status",
         headers={"Authorization": f"Bearer {token}"},
-        params={"status": "SET"},
         timeout=30,
     )
     resp.raise_for_status()
