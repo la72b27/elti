@@ -24,14 +24,6 @@ jobs:
           pip install httpx playwright
           playwright install chromium --with-deps
 
-      - name: Debug secrets presence
-        env:
-          TMS_BASE_URL: ${{ secrets.TMS_BASE_URL }}
-          ELTI_WORKER_URL: ${{ secrets.ELTI_WORKER_URL }}
-        run: |
-          echo "TMS_BASE_URL length: ${#TMS_BASE_URL}"
-          echo "ELTI_WORKER_URL length: ${#ELTI_WORKER_URL}"
-
       - name: Run sync script
         env:
           TMS_BASE_URL: ${{ secrets.TMS_BASE_URL }}

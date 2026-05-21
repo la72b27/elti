@@ -6,7 +6,6 @@ from playwright.sync_api import sync_playwright
 
 def get_env_url(key: str) -> str:
     val = os.environ.get(key, "").strip().strip("`\"'")
-    print(f"DEBUG: Reading {key}, length: {len(val)}, value-prefix: {val[:10]!r}")
     url = val.rstrip("/")
     if url and not url.startswith(("http://", "https://")):
         url = f"https://{url}"
@@ -36,74 +35,36 @@ def fetch_alarms_via_browser() -> list[dict]:
         def handle_response(response):
             try:
                 url = response.url
-                if TMS_API_HOST in url and response.status == 200:
-                    print(f"DEBUG API call: {url}")
-                    if "tmsalarm" in url or "alarm" in url.lower():
-                        data = response.json()
-                        print(f"DEBUG alarm data type: {type(data)}, len: {len(data) if isinstance(data, list) else 'dict'}")
-                        if isinstance(data, list) and len(data) > 0:
-                            captured["alarms"] = data
-                        elif isinstance(data, dict) and "data" in data and isinstance(data["data"], list):
-                            captured["alarms"] = data["data"]
-            except Exception as e:
-                print(f"DEBUG response parse error: {e}")
+                if TMS_API_HOST in url and "getAllTmsAlarms" in url and response.status == 200:
+                    data = response.json()
+                    if isinstance(data, list):
+                        captured["alarms"] = data
+                    elif isinstance(data, dict) and "data" in data and isinstance(data["data"], list):
+                        captured["alarms"] = data["data"]
+            except Exception:
+                pass
 
         page.on("response", handle_response)
 
-        print(f"DEBUG: Navigating to {TMS_BASE_URL}/login")
         page.goto(f"{TMS_BASE_URL}/login", timeout=30000)
         page.wait_for_load_state("networkidle", timeout=15000)
-        print(f"DEBUG: Login page URL: {page.url}")
-        print(f"DEBUG: Page title: {page.title()}")
 
-        inputs = page.query_selector_all("input")
-        for i, inp in enumerate(inputs):
-            print(f"DEBUG input[{i}]: type={inp.get_attribute('type')} name={inp.get_attribute('name')} id={inp.get_attribute('id')} placeholder={inp.get_attribute('placeholder')}")
-
-        buttons = page.query_selector_all("button")
-        for i, btn in enumerate(buttons):
-            print(f"DEBUG button[{i}]: type={btn.get_attribute('type')} text={btn.inner_text()[:30]}")
-
-        print("DEBUG: Filling login form")
         page.fill("#loginformemail", TMS_USERNAME)
         page.fill("#loginformpassword", TMS_PASSWORD)
         page.click('button[type="submit"]')
 
-        page.wait_for_timeout(5000)
-        print(f"DEBUG: URL after submit: {page.url}")
+        page.wait_for_load_state("networkidle", timeout=30000)
 
-        error_el = page.query_selector('.alert, .error, [class*="error"], [class*="alert"], .toast, .toastr')
-        if error_el:
-            print(f"DEBUG: Login error message: {error_el.inner_text()[:200]}")
+        if "login" in page.url.lower():
+            raise RuntimeError("Login failed - check TMS_USERNAME and TMS_PASSWORD")
 
-        if "login" not in page.url.lower():
-            print("DEBUG: Login succeeded - URL changed")
-        else:
-            page.wait_for_load_state("networkidle", timeout=20000)
-            print(f"DEBUG: URL after networkidle: {page.url}")
-            if "login" in page.url.lower():
-                error_texts = page.query_selector_all('[class*="error"], [class*="danger"], [class*="invalid"], .toast-error')
-                for el in error_texts:
-                    print(f"DEBUG error text: {el.inner_text()[:200]}")
-                raise RuntimeError("Login failed - check TMS_USERNAME and TMS_PASSWORD credentials")
-
-        print("DEBUG: Navigating to alarm page")
         page.goto(f"{TMS_BASE_URL}/tms-alarm", timeout=30000)
         page.wait_for_load_state("networkidle", timeout=20000)
-        print(f"DEBUG: URL after alarm nav: {page.url}")
-
-        if not captured.get("alarms"):
-            page.goto(f"{TMS_BASE_URL}/tms-lmd-alarm", timeout=30000)
-            page.wait_for_load_state("networkidle", timeout=20000)
-
-        if not captured.get("alarms"):
-            page.goto(f"{TMS_BASE_URL}/dashboard", timeout=30000)
-            page.wait_for_load_state("networkidle", timeout=20000)
 
         browser.close()
 
     alarms = captured.get("alarms", [])
-    print(f"DEBUG: Captured {len(alarms)} alarms")
+    print(f"Captured {len(alarms)} alarms from TMS")
     return alarms
 
 
