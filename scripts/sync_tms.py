@@ -17,15 +17,15 @@ TMS_PASSWORD = os.environ.get("TMS_PASSWORD", "")
 ELTI_WORKER_URL = get_env_url("ELTI_WORKER_URL")
 ELTI_UPDATE_TOKEN = os.environ.get("ELTI_UPDATE_TOKEN", "")
 
-TMS_API_HOST = "tms-production-api.azure.surbana.tech"
+TMS_API_BASE = "https://tms-production-api.azure.surbana.tech"
 
 SGT = timezone(timedelta(hours=8))
 
 RBE_MAP = {"COMF": "COMF", "IOF": "IOF"}
 
 
-def fetch_alarms_via_browser() -> list[dict]:
-    captured = {}
+def get_token_via_browser() -> str:
+    token = None
 
     with sync_playwright() as p:
         browser = p.chromium.launch(headless=True)
@@ -33,14 +33,14 @@ def fetch_alarms_via_browser() -> list[dict]:
         page = context.new_page()
 
         def handle_response(response):
+            nonlocal token
             try:
                 url = response.url
-                if TMS_API_HOST in url and "getAllTmsAlarms" in url and response.status == 200:
+                if "authentication" in url and response.status == 200:
                     data = response.json()
-                    if isinstance(data, list):
-                        captured["alarms"] = data
-                    elif isinstance(data, dict) and "data" in data and isinstance(data["data"], list):
-                        captured["alarms"] = data["data"]
+                    t = data.get("accessToken") or data.get("token") or data.get("access_token")
+                    if t:
+                        token = t
             except Exception:
                 pass
 
@@ -53,23 +53,34 @@ def fetch_alarms_via_browser() -> list[dict]:
         page.fill("#loginformpassword", TMS_PASSWORD)
         page.click('button[type="submit"]')
 
-        page.wait_for_timeout(5000)
-
-        if "login" in page.url.lower():
-            page.wait_for_load_state("networkidle", timeout=25000)
+        page.wait_for_timeout(8000)
 
         if "login" in page.url.lower():
             raise RuntimeError("Login failed - check TMS_USERNAME and TMS_PASSWORD")
 
-        page.goto(f"{TMS_BASE_URL}/tms-alarm", timeout=30000)
-        page.wait_for_load_state("networkidle", timeout=20000)
-        page.wait_for_timeout(3000)
-
         browser.close()
 
-    alarms = captured.get("alarms", [])
-    print(f"Captured {len(alarms)} alarms from TMS")
-    return alarms
+    if not token:
+        raise RuntimeError("Login succeeded but could not capture auth token")
+
+    return token
+
+
+def fetch_alarms(token: str) -> list[dict]:
+    with httpx.Client(verify=False) as client:
+        resp = client.get(
+            f"{TMS_API_BASE}/portalapi/tmsalarm/getAllTmsAlarms",
+            params={"assetType": "LMD"},
+            headers={"Authorization": f"Bearer {token}"},
+            timeout=30,
+        )
+        resp.raise_for_status()
+        data = resp.json()
+        if isinstance(data, list):
+            return data
+        if isinstance(data, dict) and "data" in data:
+            return data["data"]
+        return []
 
 
 def transform(raw_alarms: list[dict]) -> dict:
@@ -149,7 +160,12 @@ def main() -> None:
         print("ERROR: ELTI_WORKER_URL is empty. Please check GitHub Secrets.")
         return
 
-    raw_alarms = fetch_alarms_via_browser()
+    token = get_token_via_browser()
+    print(f"Auth token captured ({len(token)} chars)")
+
+    raw_alarms = fetch_alarms(token)
+    print(f"Fetched {len(raw_alarms)} alarms from TMS")
+
     payload = transform(raw_alarms)
     push_to_worker(payload)
 
