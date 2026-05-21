@@ -36,13 +36,15 @@ def fetch_alarms_via_browser() -> list[dict]:
         def handle_response(response):
             try:
                 url = response.url
-                if TMS_API_HOST in url and "tmsalarm" in url and response.status == 200:
-                    data = response.json()
-                    print(f"DEBUG intercepted: {url} → {type(data)}")
-                    if isinstance(data, list):
-                        captured["alarms"] = data
-                    elif isinstance(data, dict) and "data" in data:
-                        captured["alarms"] = data["data"]
+                if TMS_API_HOST in url and response.status == 200:
+                    print(f"DEBUG API call: {url}")
+                    if "tmsalarm" in url or "alarm" in url.lower():
+                        data = response.json()
+                        print(f"DEBUG alarm data type: {type(data)}, len: {len(data) if isinstance(data, list) else 'dict'}")
+                        if isinstance(data, list) and len(data) > 0:
+                            captured["alarms"] = data
+                        elif isinstance(data, dict) and "data" in data and isinstance(data["data"], list):
+                            captured["alarms"] = data["data"]
             except Exception as e:
                 print(f"DEBUG response parse error: {e}")
 
@@ -86,11 +88,12 @@ def fetch_alarms_via_browser() -> list[dict]:
                 raise RuntimeError("Login failed - check TMS_USERNAME and TMS_PASSWORD credentials")
 
         print("DEBUG: Navigating to alarm page")
-        page.goto(f"{TMS_BASE_URL}/alarm-monitoring", timeout=30000)
+        page.goto(f"{TMS_BASE_URL}/tms-alarm", timeout=30000)
         page.wait_for_load_state("networkidle", timeout=20000)
+        print(f"DEBUG: URL after alarm nav: {page.url}")
 
         if not captured.get("alarms"):
-            page.goto(f"{TMS_BASE_URL}/rbe-alarm", timeout=30000)
+            page.goto(f"{TMS_BASE_URL}/tms-lmd-alarm", timeout=30000)
             page.wait_for_load_state("networkidle", timeout=20000)
 
         if not captured.get("alarms"):
