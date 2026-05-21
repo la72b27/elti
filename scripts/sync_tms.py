@@ -61,18 +61,9 @@ def fetch_alarms_via_browser() -> list[dict]:
         if "login" in page.url.lower():
             raise RuntimeError("Login failed - check TMS_USERNAME and TMS_PASSWORD")
 
-        with page.expect_response(
-            lambda r: TMS_API_HOST in r.url and "getAllTmsAlarms" in r.url,
-            timeout=30000,
-        ) as resp_info:
-            page.goto(f"{TMS_BASE_URL}/tms-alarm", timeout=30000)
-
-        resp = resp_info.value
-        data = resp.json()
-        if isinstance(data, list):
-            captured["alarms"] = data
-        elif isinstance(data, dict) and "data" in data and isinstance(data["data"], list):
-            captured["alarms"] = data["data"]
+        page.goto(f"{TMS_BASE_URL}/tms-alarm", timeout=30000)
+        page.wait_for_load_state("networkidle", timeout=20000)
+        page.wait_for_timeout(3000)
 
         browser.close()
 
