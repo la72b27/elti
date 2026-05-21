@@ -183,95 +183,96 @@ def _dump_elements(page) -> None:
 #  Dropdown selection helper
 # ──────────────────────────────────────────────────────────
 
+def _dump_select_options(page) -> None:
+    """打印页面上所有 <select> 及其 <option>，帮助确认正确的 value/text。"""
+    data = page.evaluate("""() => {
+        return Array.from(document.querySelectorAll('select')).map((sel, i) => ({
+            index: i,
+            id:    sel.id   || '',
+            name:  sel.name || '',
+            cls:   (sel.className || '').toString().substring(0, 40),
+            options: Array.from(sel.options).map(o => ({
+                value: o.value, text: o.text.trim(), selected: o.selected
+            }))
+        }));
+    }""")
+    print("  --- <select> elements ---")
+    for s in data:
+        print(f"    select[{s['index']}] id={s['id']!r} name={s['name']!r} cls={s['cls']!r}")
+        for o in s["options"]:
+            print(f"      option: value={o['value']!r}  text={o['text']!r}  selected={o['selected']}")
+    print("  --- end selects ---")
+
+
+def _dump_buttons(page) -> None:
+    """打印页面上所有按钮文字。"""
+    btns = page.evaluate("""() => {
+        return Array.from(document.querySelectorAll(
+            'button, input[type="submit"], input[type="button"], [role="button"]'
+        ))
+        .map(b => ({
+            tag:      b.tagName.toLowerCase(),
+            text:     (b.textContent || b.value || '').trim().substring(0, 60),
+            disabled: b.disabled,
+            cls:      (b.className || '').toString().substring(0, 50),
+        }))
+        .filter(b => b.text.length > 0);
+    }""")
+    print("  --- Buttons ---")
+    for b in btns:
+        print(f"    {b}")
+    print("  --- end buttons ---")
+
+
 def _select_dropdown_option(page, option_text: str) -> bool:
     """
-    支持多种 dropdown 类型：
-      - native <select>
-      - Angular Material  mat-select / mat-option
-      - PrimeNG           p-dropdown / .p-dropdown-item
-      - custom listbox    [role="combobox"] / [role="option"]
+    先枚举 select 选项，按 value 或 text 包含关系匹配，
+    直接设置 select.value 并触发 change/input 事件（Angular 监听 change）。
     """
-    # 1. Native select
-    try:
-        page.select_option("select", label=option_text, timeout=2000)
-        print(f"    [dropdown] selected via native <select>: {option_text!r}")
-        return True
-    except Exception:
-        pass
-
-    try:
-        page.select_option("select", value=option_text, timeout=2000)
-        print(f"    [dropdown] selected via native <select> value: {option_text!r}")
-        return True
-    except Exception:
-        pass
-
-    # 2. Angular Material mat-select
-    for trigger_sel in ("mat-select", "[role='combobox']", ".mat-select-trigger"):
-        try:
-            page.click(trigger_sel, timeout=2000)
-            page.wait_for_timeout(500)
-            page.click(f"mat-option:has-text('{option_text}')", timeout=3000)
-            print(f"    [dropdown] Angular Material: {option_text!r}")
-            return True
-        except Exception:
-            pass
-
-    # 3. PrimeNG p-dropdown
-    for trigger_sel in ("p-dropdown", ".p-dropdown", ".p-dropdown-trigger"):
-        try:
-            page.click(trigger_sel, timeout=2000)
-            page.wait_for_timeout(500)
-            page.click(f".p-dropdown-item:has-text('{option_text}')", timeout=3000)
-            print(f"    [dropdown] PrimeNG: {option_text!r}")
-            return True
-        except Exception:
-            pass
-
-    # 4. JavaScript: 找所有可见元素，点击文本匹配项
-    result = page.evaluate("""(text) => {
-        const candidates = Array.from(document.querySelectorAll(
-            'mat-option, option, li, [role="option"], .p-dropdown-item, .dropdown-item'
-        ));
-        for (const el of candidates) {
-            if (el.textContent.trim().includes(text) && el.offsetParent !== null) {
-                el.dispatchEvent(new MouseEvent('click', {bubbles: true}));
-                return el.tagName + ': ' + el.textContent.trim().substring(0, 40);
+    # 枚举所有 select，找到 value 或 text 含目标文字的 option，直接赋值
+    result = page.evaluate("""(search) => {
+        const selects = document.querySelectorAll('select');
+        const debugInfo = [];
+        for (const sel of selects) {
+            const opts = Array.from(sel.options).map(o => o.value + '|' + o.text.trim());
+            debugInfo.push({id: sel.id, opts});
+            for (const opt of sel.options) {
+                const v = opt.value.toUpperCase();
+                const t = opt.text.trim().toUpperCase();
+                const s = search.toUpperCase();
+                if (v === s || t === s || v.includes(s) || t.includes(s)) {
+                    sel.value = opt.value;
+                    sel.dispatchEvent(new Event('change', {bubbles: true}));
+                    sel.dispatchEvent(new Event('input',  {bubbles: true}));
+                    return 'SET value=' + opt.value + ' text=' + opt.text.trim();
+                }
             }
         }
-        // 如果选项还没出现，先点一下触发器再找
-        const triggers = Array.from(document.querySelectorAll(
-            'mat-select, p-dropdown, [role="combobox"], select'
-        ));
-        if (triggers.length > 0) {
-            triggers[0].click();
-            return 'opened trigger: ' + triggers[0].tagName;
-        }
-        return null;
+        return 'NO_MATCH: ' + JSON.stringify(debugInfo);
     }""", option_text)
 
-    if result:
-        print(f"    [dropdown] JS click: {result}")
-        if "opened trigger" in str(result):
-            # 触发器刚打开，再找一次 option
-            page.wait_for_timeout(600)
-            result2 = page.evaluate("""(text) => {
-                const candidates = Array.from(document.querySelectorAll(
-                    'mat-option, option, li, [role="option"], .p-dropdown-item'
-                ));
-                for (const el of candidates) {
-                    if (el.textContent.trim().includes(text) && el.offsetParent !== null) {
-                        el.dispatchEvent(new MouseEvent('click', {bubbles: true}));
-                        return el.tagName + ': ' + el.textContent.trim().substring(0, 40);
-                    }
-                }
-                return null;
-            }""", option_text)
-            if result2:
-                print(f"    [dropdown] JS click option after open: {result2}")
-                return True
-        else:
-            return True
+    print(f"    [select] {result}")
+    if result and not result.startswith("NO_MATCH"):
+        return True
+
+    # fallback: Angular Material / PrimeNG
+    for trigger_sel in ("mat-select", "[role='combobox']", "p-dropdown", ".p-dropdown"):
+        try:
+            page.click(trigger_sel, timeout=2000)
+            page.wait_for_timeout(500)
+            for opt_sel in (
+                f"mat-option:has-text('{option_text}')",
+                f".p-dropdown-item:has-text('{option_text}')",
+                f"[role='option']:has-text('{option_text}')",
+            ):
+                try:
+                    page.click(opt_sel, timeout=2000)
+                    print(f"    [dropdown] {trigger_sel} → {opt_sel}")
+                    return True
+                except Exception:
+                    pass
+        except Exception:
+            pass
 
     return False
 
@@ -309,50 +310,38 @@ def _retrieve_one(page, rbe_type: str) -> list[dict]:
 
     # ── 选择告警类型 ──
     print(f"  Selecting alarm type: {rbe_type}")
+    _dump_select_options(page)
     selected = _select_dropdown_option(page, rbe_type)
     if not selected:
         print(f"  WARNING: Could not select {rbe_type} from dropdown")
     page.wait_for_timeout(800)
 
-    # ── 点击 Retrieve Active Alarms ──
-    retrieved = False
-    for sel in [
-        'button:has-text("Retrieve Active Alarms")',
-        'button:has-text("Retrieve")',
-        '[role="button"]:has-text("Retrieve")',
-        'span.mat-button-wrapper:has-text("Retrieve")',
-        'span:has-text("Retrieve Active Alarms")',
-        ':text("Retrieve Active Alarms")',
-    ]:
-        try:
-            page.click(sel, timeout=3000)
-            print(f"  Clicked retrieve via: {sel!r}")
-            retrieved = True
-            break
-        except Exception:
-            pass
+    # ── 打印按钮列表（确认 Retrieve 按钮文字）──
+    _dump_buttons(page)
 
-    if not retrieved:
-        result = page.evaluate("""() => {
-            const texts = ['Retrieve Active Alarms','Retrieve Active Alarm','RETRIEVE','Retrieve'];
-            for (const text of texts) {
-                const all = Array.from(document.querySelectorAll(
-                    'button,[role="button"],span.mat-button-wrapper,a'
-                ));
-                for (const el of all) {
-                    if (el.textContent.trim().includes(text) && el.offsetParent !== null) {
-                        el.dispatchEvent(new MouseEvent('click', {bubbles: true}));
-                        return text + ' via ' + el.tagName;
-                    }
-                }
+    # ── 点击 Retrieve Active Alarms ──
+    # 用 JS 枚举所有按钮并打印，同时尝试点击匹配的按钮
+    retrieved = False
+    result = page.evaluate("""() => {
+        const all = Array.from(document.querySelectorAll(
+            'button, input[type="submit"], [role="button"]'
+        ));
+        const allTexts = all.map(b => (b.textContent || b.value || '').trim());
+        // 尝试点击任何含 "retrieve" 的按钮（不区分大小写，无可见性限制）
+        for (const b of all) {
+            const t = (b.textContent || b.value || '').trim().toLowerCase();
+            if (t.includes('retrieve')) {
+                b.dispatchEvent(new MouseEvent('click', {bubbles: true}));
+                return 'clicked: ' + (b.textContent || b.value || '').trim();
             }
-            return null;
-        }""")
-        if result:
-            print(f"  Clicked retrieve via JS: {result}")
-            retrieved = True
-        else:
-            print(f"  WARNING: Retrieve button not found")
+        }
+        return 'NOT_FOUND. All button texts: ' + JSON.stringify(allTexts.filter(t => t).slice(0, 15));
+    }""")
+    print(f"  [retrieve] {result}")
+    if result and not result.startswith("NOT_FOUND"):
+        retrieved = True
+    else:
+        print(f"  WARNING: Retrieve button not found")
 
     # 等待 API 响应
     try:
@@ -389,8 +378,10 @@ def collect_alarms() -> list[dict]:
             browser.close()
             return []
 
-        # 打印页面元素，便于排查选择器
+        # 打印页面元素（select 选项 + 按钮），便于排查选择器
         _dump_elements(page)
+        _dump_select_options(page)
+        _dump_buttons(page)
 
         # 在同一个已加载的页面上依次检索 COMF 和 IOF
         for rbe_type in ("COMF", "IOF"):
