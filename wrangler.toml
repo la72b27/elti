@@ -6,6 +6,12 @@ compatibility_flags = ["python_workers"]
 # UPDATE_TOKEN is stored as a Cloudflare Workers Secret (not here).
 # Set it once via: wrangler secret put UPDATE_TOKEN
 
+# GITHUB_TOKEN is a GitHub PAT with 'workflow' scope.
+# Set it once via: wrangler secret put GITHUB_TOKEN
+
+[triggers]
+crons = ["0 1 * * *"]
+
 [[kv_namespaces]]
 binding = "ELTI_DATA"
 id = "bfbb7960f088482aa74b5a94416e564e"
