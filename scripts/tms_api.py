@@ -76,4 +76,7 @@ def _fetch_one(
         resp = client.get(api_base, params=params, headers=headers)
         resp.raise_for_status()
         payload = resp.json()
-        return payload.get("data", [])
+        rows = payload.get("data", [])
+        if rows:
+            print(f"  [{alarm_code}] API field keys: {sorted(rows[0].keys())}")
+        return rows
