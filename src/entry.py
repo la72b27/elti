@@ -129,18 +129,23 @@ function makePu(rec) {
         +'</div>';
 }
 
-function addMarker(rec, lat, lng) {
-    const rbe = rec.RBE === 'COMF' ? 'COMF' : 'IOF';
-    L.circleMarker([lat,lng],{
-        radius:7, color:'rgba(0,0,0,0.42)', weight:1.5,
+// One marker per (address, RBE) – popup lists all records at that spot
+function addGroupMarker(rbe, recs, lat, lng) {
+    const n = recs.length;
+    const m = L.circleMarker([lat,lng],{
+        radius: 6 + Math.min(n, 5),
+        color:'rgba(0,0,0,0.42)', weight:1.5,
         fillColor:CC[rbe], fillOpacity:0.87
-    }).bindPopup(makePu(rec),{maxWidth:290,autoPan:true}).addTo(layers[rbe]);
-    counts[rbe]++;
+    });
+    const body = recs.map(r => makePu(r)).join('<hr style="margin:5px 0;border-color:#ddd">');
+    m.bindPopup(body, {maxWidth:290, maxHeight:340, autoPan:true}).addTo(layers[rbe]);
+    counts[rbe] += n;
 }
 
-async function geo(block, street) {
-    const q = encodeURIComponent(block+' '+street);
-    const url = 'https://www.onemap.gov.sg/api/common/elastic/search?searchVal='+q+'&returnGeom=Y&getAddrDetails=Y&pageNum=1';
+async function _geoQuery(q) {
+    if (!q.trim()) return null;
+    const url = 'https://www.onemap.gov.sg/api/common/elastic/search?searchVal='
+        +encodeURIComponent(q.trim())+'&returnGeom=Y&getAddrDetails=Y&pageNum=1';
     const hdrs = TOKEN ? {Authorization:TOKEN} : {};
     const ctrl = new AbortController();
     const timer = setTimeout(() => ctrl.abort(), 12000);
@@ -154,6 +159,23 @@ async function geo(block, street) {
         const lat = parseFloat(res.LATITUDE), lng = parseFloat(res.LONGITUDE);
         return (isFinite(lat) && isFinite(lng) && lat > 0 && lng > 0) ? [lat,lng] : null;
     } catch { clearTimeout(timer); return null; }
+}
+
+async function geo(block, street) {
+    const b = (block||'').trim(), s = (street||'').trim();
+    if (!b && !s) return null;
+    const queries = [];
+    if (b && s) {
+        queries.push(b+' '+s);
+        if (!/^BLK\b/i.test(b)) queries.push('BLK '+b+' '+s);
+    }
+    if (s) queries.push(s);
+    for (let i = 0; i < queries.length; i++) {
+        const r = await _geoQuery(queries[i]);
+        if (r) return r;
+        if (i < queries.length-1) await new Promise(ok => setTimeout(ok, 200));
+    }
+    return null;
 }
 
 async function run() {
@@ -181,7 +203,12 @@ async function run() {
             if (coords) {
                 const [lat, lng] = coords;
                 bounds.extend([lat, lng]);
-                for (const rec of info.recs) addMarker(rec, lat, lng);
+                const byRbe = {};
+                for (const rec of info.recs) {
+                    const rbe = rec.RBE === 'COMF' ? 'COMF' : 'IOF';
+                    (byRbe[rbe] = byRbe[rbe]||[]).push(rec);
+                }
+                for (const [rbe, recs] of Object.entries(byRbe)) addGroupMarker(rbe, recs, lat, lng);
             }
         }));
         if (i + BATCH < entries.length) await new Promise(ok => setTimeout(ok, DELAY));
