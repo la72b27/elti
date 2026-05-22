@@ -158,20 +158,17 @@ async function run() {
     const total = entries.length;
     let done = 0;
     const bounds = L.latLngBounds();
-    const BATCH = 8;
 
-    for (let i = 0; i < entries.length; i += BATCH) {
-        const batch = entries.slice(i, i+BATCH);
-        await Promise.all(batch.map(async info => {
-            const coords = await geo(info.block, info.street);
-            done++;
-            setProgress(done, total);
-            if (!coords) return;
+    for (const info of entries) {
+        const coords = await geo(info.block, info.street);
+        done++;
+        setProgress(done, total);
+        if (coords) {
             const [lat,lng] = coords;
             bounds.extend([lat,lng]);
             for (const rec of info.recs) addMarker(rec, lat, lng);
-        }));
-        if (i+BATCH < entries.length) await new Promise(ok => setTimeout(ok, 60));
+        }
+        await new Promise(ok => setTimeout(ok, 250));
     }
 
     document.getElementById('cnt-comf').textContent = counts.COMF;
