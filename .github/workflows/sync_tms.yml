@@ -2,6 +2,12 @@ name: Sync TMS Data to ELTI
 
 on:
   workflow_dispatch:
+  schedule:
+    - cron: '0 1 * * *'  # 09:00 SGT (UTC+8) daily fallback
+
+concurrency:
+  group: sync-tms
+  cancel-in-progress: false
 
 jobs:
   sync:
