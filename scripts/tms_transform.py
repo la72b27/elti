@@ -35,10 +35,10 @@ def normalize_records(
 
 
 def merge_records(records: list[dict]) -> list[dict]:
-    """Group by (TC_Display, Pfx, Block, RBE) and concatenate Lift letters."""
+    """Group by (TC_Display, Pfx, Block) and concatenate Lift letters."""
     if not records:
         return []
-    key_fn = lambda r: (r.get("TC_Display", ""), r.get("Pfx", ""), r.get("Block", ""), r.get("RBE", ""))
+    key_fn = lambda r: (r.get("TC_Display", ""), r.get("Pfx", ""), r.get("Block", ""))
     sorted_recs = sorted(records, key=key_fn)
     merged: list[dict] = []
     for _key, group_iter in groupby(sorted_recs, key=key_fn):
