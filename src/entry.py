@@ -102,7 +102,6 @@ HTML_TEMPLATE = """
                         <th><div class="header-text">LCOY</div></th>
                         <th><button class="sort-btn" onclick="sortTable(7, this)">Status Date</button></th>
                         <th><div class="header-text">RBE</div></th>
-                        <th><div class="header-text">Status</div></th>
                     </tr>
                 </thead>
                 <tbody id="tableBody"></tbody>
@@ -192,12 +191,6 @@ HTML_TEMPLATE = """
                 tr.appendChild(makeTd(row.LCOY));
                 tr.appendChild(makeTd(fmtDate(row['Status Date'])));
                 tr.appendChild(makeTd(row.RBE_Display));
-                const statusTd = document.createElement('td');
-                const span = document.createElement('span');
-                span.className = 'status-set';
-                span.textContent = row.Status ?? '';
-                statusTd.appendChild(span);
-                tr.appendChild(statusTd);
                 tbody.appendChild(tr);
             });
         }
@@ -213,7 +206,7 @@ HTML_TEMPLATE = """
             data.records.sort((a, b) => {
                  let valA, valB;
                  // Map column index to data keys
-                 const keys = ['_index', 'TC_Display', 'Pfx', 'Block', 'Lift', 'Address', 'LCOY', 'Status Date', 'RBE_Display', 'Status'];
+                 const keys = ['_index', 'TC_Display', 'Pfx', 'Block', 'Lift', 'Address', 'LCOY', 'Status Date', 'RBE_Display'];
                  const key = keys[colIndex];
                 
                 valA = a[key] || '';
