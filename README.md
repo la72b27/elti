@@ -4,47 +4,6 @@
 
 ---
 
-### v1.4.0 — 2026-05-22
-
-#### 新增功能：ROUTE 地图页
-
-##### 功能说明
-
-1. **OneMap 自动续期**：Worker 使用存储的 `ONEMAP_EMAIL` / `ONEMAP_PASSWORD` 密钥自动获取并缓存 OneMap access_token（有效期 72 小时，到期自动刷新，存储于 KV）
-2. **ROUTE 按钮**：在 COMF / IOF 右侧新增 ROUTE 按钮，配色 `rgb(175, 244, 43)`
-3. **地图页（`/route`）**：点击 ROUTE 按钮在新标签页打开全屏 OneMap 地图，标记所有当前 COMF 和 IOF 告警点位
-4. **配色规则与主页一致**：COMF = 紫色 `rgb(153, 87, 255)`，IOF = 青色 `rgb(34, 213, 254)`
-5. **响应式设计**：适配手机、平板、桌面，地图始终占满剩余视口，控件自动调整大小
-
-##### 地图页特性
-
-- 使用 OneMap 官方瓦片（`Default/{z}/{x}/{y}.png`）
-- 地址逐批并发 geocoding（8 个并发，每批间隔 60 ms），带进度条
-- 加载完成后自动 fitBounds 至所有点位
-- 左下角 COMF / IOF 图层开关（点击可隐藏/显示）
-- 右上角图例
-- 点击圆形标记弹出详情（TC、Block、Address、Lift、LCOY、Status Date、Status）
-
-##### 部署说明
-
-使用 OneMap 自动续期功能需在 Cloudflare Worker 中设置两个密钥：
-
-```bash
-wrangler secret put ONEMAP_EMAIL
-wrangler secret put ONEMAP_PASSWORD
-```
-
-若未设置密钥，`/route` 页面仍可正常使用（geocoding 使用无鉴权模式，速率限制较严）。
-
-##### 变更文件
-
-| 文件 | 说明 |
-|------|------|
-| `src/entry.py` | 新增 `ROUTE_HTML`、`_get_onemap_token()`、`/route` 路由；版本升级至 **1.4.0** |
-| `README.md` | 新增 v1.4.0 版本记录 |
-
----
-
 ### v1.3.4.0 — 2026-05-22
 
 #### 性能优化结果
