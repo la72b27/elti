@@ -105,9 +105,7 @@ def _normalize_one(raw: dict, alarm_code: str) -> dict | None:
         "Lift":             raw.get("liftLetter", ""),
         "Address":          raw.get("street", ""),
         "Hardware Version": raw.get("hardwareVersion", ""),
-        "LCOY":             (raw.get("lcoy") or raw.get("lcoYear") or
-                             raw.get("liftCompanyYear") or raw.get("liftCompany") or
-                             raw.get("liftCompanyName") or raw.get("maintainerName") or ""),
+        "LCOY":             raw.get("liftCompany", ""),
         "Status Date":      _parse_date(raw.get("setDate", "")),
         "Bits Description": bits_desc,
         "Status":           raw.get("status", "SET"),
