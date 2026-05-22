@@ -29,4 +29,6 @@ jobs:
           TMS_PASSWORD: ${{ secrets.TMS_PASSWORD }}
           ELTI_WORKER_URL: ${{ secrets.ELTI_WORKER_URL }}
           ELTI_UPDATE_TOKEN: ${{ secrets.ELTI_UPDATE_TOKEN }}
+          ONEMAP_EMAIL: ${{ secrets.ONEMAP_EMAIL }}
+          ONEMAP_PASSWORD: ${{ secrets.ONEMAP_PASSWORD }}
         run: python -m scripts.sync_tms

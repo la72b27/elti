@@ -67,6 +67,7 @@ def build_payload(records: list[dict]) -> dict:
     for r in comf_out + iof_out:
         rbe = r.get("RBE_Display", r.get("RBE", "COMF"))
         payload_records.append({
+            "Postcode":    r.get("Postcode", ""),
             "TC_Display":  r.get("TC_Display", "-"),
             "Pfx":         r.get("Pfx", ""),
             "Block":       r.get("Block", ""),
