@@ -133,7 +133,13 @@ HTML_TEMPLATE = """
         let currentTC = 'ALL';
         let sortDirections = {};
         const EXCLUDE_PC_KEY = 'elti_excluded_pc';
-        let excludedPostcodes = new Set(JSON.parse(localStorage.getItem(EXCLUDE_PC_KEY) || '[]'));
+        let excludedPostcodes = new Set();
+        try {
+            const _stored = localStorage.getItem(EXCLUDE_PC_KEY);
+            const _parsed = JSON.parse(_stored || '[]');
+            if (Array.isArray(_parsed)) excludedPostcodes = new Set(_parsed);
+            else localStorage.removeItem(EXCLUDE_PC_KEY);
+        } catch(e) { localStorage.removeItem(EXCLUDE_PC_KEY); }
 
         function render() {
             document.getElementById('comfBtn').textContent = `COMF ${data.comf_count}`;
