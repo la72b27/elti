@@ -38,3 +38,11 @@ jobs:
           ONEMAP_EMAIL: ${{ secrets.ONEMAP_EMAIL }}
           ONEMAP_PASSWORD: ${{ secrets.ONEMAP_PASSWORD }}
         run: python -m scripts.sync_tms
+
+      - name: Upload debug screenshots
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: tms-debug-screenshots
+          path: ${{ runner.temp }}/tms_*.png
+          if-no-files-found: ignore

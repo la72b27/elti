@@ -1,8 +1,11 @@
 """Browser-based TMS login; captures the first alarm API request for token + headers."""
 
 from __future__ import annotations
+import os
 from urllib.parse import urlparse, parse_qs
 from playwright.sync_api import sync_playwright, Page
+
+_SCREENSHOT_DIR = os.environ.get("RUNNER_TEMP", "/tmp")
 
 
 def login_and_capture(base_url: str, username: str, password: str) -> dict:
@@ -28,9 +31,9 @@ def login_and_capture(base_url: str, username: str, password: str) -> dict:
 
         print("Navigating to alarm page...")
         page.goto(f"{base_url}/lift/tms-lmd-alarm", wait_until="networkidle")
-        page.wait_for_timeout(3000)
+        page.wait_for_timeout(5000)
 
-        captured = _trigger_and_capture(page)
+        captured = _trigger_and_capture(page, base_url)
         browser.close()
 
     if not captured:
@@ -50,16 +53,21 @@ def _do_login(page: Page, base_url: str, username: str, password: str) -> None:
     page.fill("#loginformemail", username)
     page.fill("#loginformpassword", password)
     page.click("button:has-text('Login'), button[type='submit']")
-    page.wait_for_timeout(4000)
+    # Wait for redirect away from /login (up to 10s), then settle
+    try:
+        page.wait_for_url(lambda url: "/login" not in url, timeout=10_000)
+    except Exception:
+        pass
+    page.wait_for_timeout(2000)
     print(f"  Login done. URL: {page.url}")
 
 
-def _trigger_and_capture(page: Page) -> dict | None:
+def _trigger_and_capture(page: Page, base_url: str = "") -> dict | None:
     """Select COMF alarm, click Retrieve, intercept the outgoing API request."""
     try:
         dropdown = page.wait_for_selector(
-            "#tmsAlarm2, #tmsAlarm1, .alarm-select app-searchable-dropdown",
-            timeout=10_000,
+            "#tmsAlarm2, #tmsAlarm1, .alarm-select app-searchable-dropdown, app-searchable-dropdown",
+            timeout=20_000,
         )
         dropdown.click()
         inp = dropdown.query_selector("input[placeholder='Search']")
@@ -70,6 +78,9 @@ def _trigger_and_capture(page: Page) -> dict | None:
         print("  Selected COMF from dropdown")
     except Exception as e:
         print(f"  WARN selecting dropdown: {e}")
+        _save_debug_screenshot(page, "dropdown_fail")
+        print(f"  Page URL at failure: {page.url}")
+        print(f"  Page title: {page.title()}")
         return None
 
     try:
@@ -93,6 +104,15 @@ def _trigger_and_capture(page: Page) -> dict | None:
         return None
 
     return _parse_request(req)
+
+
+def _save_debug_screenshot(page: Page, name: str) -> None:
+    path = os.path.join(_SCREENSHOT_DIR, f"tms_{name}.png")
+    try:
+        page.screenshot(path=path, full_page=True)
+        print(f"  Screenshot saved: {path}")
+    except Exception as ex:
+        print(f"  Screenshot failed: {ex}")
 
 
 def _parse_request(req) -> dict:
