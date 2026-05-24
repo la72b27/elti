@@ -123,6 +123,7 @@ HTML_TEMPLATE = """
             <table class="table table-hover table-bordered">
                 <thead>
                     <tr>
+                        <th><div class="header-text">No.</div></th>
                         <th><button class="sort-btn" onclick="sortByExclude(this)" title="Sort: masked rows to top">Mask</button></th>
                         <th><button class="sort-btn" onclick="sortTable(1, this)">Postcode</button></th>
                         <th><button class="sort-btn" onclick="sortTable(2, this)">TC</button></th>
@@ -244,9 +245,10 @@ HTML_TEMPLATE = """
                 td.textContent = text ?? '';
                 return td;
             };
-            filteredRecords.forEach(row => {
+            filteredRecords.forEach((row, i) => {
                 const tr = document.createElement('tr');
                 tr.className = 'alarm-row';
+                tr.appendChild(makeTd(i + 1, 'text-center'));
                 // Checkbox — exclude this postcode from Route Map (persisted in localStorage)
                 const pc = (row.Postcode || '').trim();
                 const shouldCheck = !!pc && excludedPostcodes.has(pc);
