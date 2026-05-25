@@ -72,7 +72,7 @@ def _fetch_one(
         ("selectedAlarmCodes", alarm_code),
     ]
 
-    with httpx.Client(timeout=30) as client:
+    with httpx.Client(timeout=30, verify=False) as client:
         resp = client.get(api_base, params=params, headers=headers)
         resp.raise_for_status()
         payload = resp.json()
