@@ -97,38 +97,47 @@ def _enrich_postcodes(records: list[dict]) -> None:
         (r.get("Block", ""), r.get("Address", "")): "" for r in records
     }
 
+    def _om_get(search_val: str) -> list[dict]:
+        """GET OneMap elastic search; returns results list (empty on any error)."""
+        for attempt in range(2):
+            try:
+                resp = httpx.get(
+                    _ONEMAP_SEARCH_URL,
+                    params={"searchVal": search_val, "returnGeom": "N",
+                            "getAddrDetails": "Y", "pageNum": 1},
+                    headers={"Authorization": token},
+                    timeout=15,
+                )
+                if resp.status_code == 401:
+                    return []
+                resp.raise_for_status()
+                return resp.json().get("results", [])
+            except Exception:
+                if attempt == 0:
+                    continue  # one retry on transient errors
+                return []
+        return []
+
     def _query(key: tuple) -> tuple[tuple, str]:
         blk, street = key
         b = _strip_blk(blk)
         q = re.sub(r"\s+", " ", f"{b} {street}".strip()).upper()
         if not q:
             return key, ""
-        try:
-            resp = httpx.get(
-                _ONEMAP_SEARCH_URL,
-                params={"searchVal": q, "returnGeom": "N",
-                        "getAddrDetails": "Y", "pageNum": 1},
-                headers={"Authorization": token},
-                timeout=12,
-            )
-            if resp.status_code == 401:
-                return key, ""
-            resp.raise_for_status()
-            results = resp.json().get("results", [])
-            # Fallback: street-only search when the full query returns nothing
-            if not results and street:
-                resp2 = httpx.get(
-                    _ONEMAP_SEARCH_URL,
-                    params={"searchVal": street.upper(), "returnGeom": "N",
-                            "getAddrDetails": "Y", "pageNum": 1},
-                    headers={"Authorization": token},
-                    timeout=12,
-                )
-                resp2.raise_for_status()
-                results = resp2.json().get("results", [])
-            return key, _choose_postal(results, blk, street)
-        except Exception:
-            return key, ""
+
+        results = _om_get(q)
+
+        # Fallback 1: strip trailing alpha suffix from block (e.g. "54A" → "54")
+        if not results and b and re.search(r"\d[A-Z]+$", b):
+            b_numeric = re.sub(r"[A-Z]+$", "", b)
+            q2 = re.sub(r"\s+", " ", f"{b_numeric} {street}".strip()).upper()
+            results = _om_get(q2)
+
+        # Fallback 2: street-only search as last resort
+        if not results and street:
+            results = _om_get(street.upper())
+
+        return key, _choose_postal(results, blk, street)
 
     n = len(addr_cache)
     print(f"  [postcode] looking up {n} unique addresses...")
