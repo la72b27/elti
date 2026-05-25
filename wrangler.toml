@@ -15,3 +15,8 @@ crons = ["0 1 * * *"]
 [[kv_namespaces]]
 binding = "ELTI_DATA"
 id = "bfbb7960f088482aa74b5a94416e564e"
+
+[[d1_databases]]
+binding = "elti_db"
+database_name = "elti-db"
+database_id = "2d2921c0-216e-48c4-acdd-aad72689097d"
