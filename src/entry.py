@@ -558,6 +558,19 @@ def _dv(row, key, default=""):
     return str(v) if v is not None else default
 
 
+def _status_int(v) -> int:
+    """Convert TMS status value to int (1=Normal, 2=SET/active).
+    Handles numeric types, numeric strings, and alarm-state strings like 'SET'.
+    """
+    if isinstance(v, int):
+        return v
+    try:
+        return int(v)
+    except (TypeError, ValueError):
+        s = str(v).strip().upper()
+        return 1 if s in ("", "NORMAL", "OK", "CLEAR", "CLEARED", "INACTIVE") else 2
+
+
 _EMPTY_PAYLOAD = {"records": [], "comf_count": 0, "iof_count": 0,
                   "tc_stats": {"COMF": {}, "IOF": {}}, "last_updated": "Never"}
 
@@ -645,7 +658,7 @@ async def _d1_write(env, data):
             r.get("Address", ""),   r.get("Postcode", ""),
             r.get("LCOY", ""),      r.get("Status Date", ""),
             r.get("RBE", ""),       r.get("RBE_Display", ""),
-            int(r.get("Status", 1) or 1),
+            _status_int(r.get("Status", 1)),
         )
         for r in records
     ]

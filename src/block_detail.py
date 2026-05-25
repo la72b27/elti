@@ -170,7 +170,9 @@ def render_html(rows: list, tc: str, pfx: str, block: str) -> str:
         )
 
     alarm_cards = "\n".join(alarm_parts) if alarm_parts else (
-        '<div class="card"><div class="card-body">'
+        '<div class="card">'
+        '<div class="card-header hdr-tms">TMS Alarm</div>'
+        '<div class="card-body">'
         '<p class="no-data">No TMS alarm record found for this block.</p>'
         '</div></div>'
     )
