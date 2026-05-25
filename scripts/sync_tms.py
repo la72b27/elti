@@ -56,10 +56,18 @@ def _fetch_onemap_token() -> str:
         return ""
 
 
+_BLK_RE = re.compile(r"(?:BLK|BLOCK)\s*", re.IGNORECASE)
+
+
+def _strip_blk(s: str) -> str:
+    """Remove leading BLK/BLOCK prefix (handles 'BLK 123' and 'BLK123')."""
+    return _BLK_RE.sub("", s or "").strip()
+
+
 def _choose_postal(results: list[dict], blk: str, street: str) -> str:
-    """Pick the best postal code from OneMap search results (mirrors onemap_api.py)."""
+    """Pick the best postal code from OneMap search results."""
     best_score, best_post = -1, ""
-    ub = (blk or "").upper().strip()
+    ub = _strip_blk(blk).upper()
     us = (street or "").upper().strip()
     for item in results:
         postal = str(item.get("POSTAL", "")).strip()
@@ -91,7 +99,7 @@ def _enrich_postcodes(records: list[dict]) -> None:
 
     def _query(key: tuple) -> tuple[tuple, str]:
         blk, street = key
-        b = re.sub(r"\b(?:BLK|BLOCK)\b", " ", blk or "", flags=re.IGNORECASE)
+        b = _strip_blk(blk)
         q = re.sub(r"\s+", " ", f"{b} {street}".strip()).upper()
         if not q:
             return key, ""
@@ -102,12 +110,23 @@ def _enrich_postcodes(records: list[dict]) -> None:
                         "getAddrDetails": "Y", "pageNum": 1},
                 headers={"Authorization": token},
                 timeout=12,
-                verify=False,
             )
             if resp.status_code == 401:
                 return key, ""
             resp.raise_for_status()
-            return key, _choose_postal(resp.json().get("results", []), blk, street)
+            results = resp.json().get("results", [])
+            # Fallback: street-only search when the full query returns nothing
+            if not results and street:
+                resp2 = httpx.get(
+                    _ONEMAP_SEARCH_URL,
+                    params={"searchVal": street.upper(), "returnGeom": "N",
+                            "getAddrDetails": "Y", "pageNum": 1},
+                    headers={"Authorization": token},
+                    timeout=12,
+                )
+                resp2.raise_for_status()
+                results = resp2.json().get("results", [])
+            return key, _choose_postal(results, blk, street)
         except Exception:
             return key, ""
 
