@@ -20,8 +20,11 @@ async def get_token(env, force=False):
         if cached:
             return cached
 
-    email = env.ONEMAP_EMAIL if hasattr(env, "ONEMAP_EMAIL") else "qi.liu@softgridinc.com"
-    password = env.ONEMAP_PASSWORD if hasattr(env, "ONEMAP_PASSWORD") else "S@ftgr1dSensing"
+    email = env.ONEMAP_EMAIL if hasattr(env, "ONEMAP_EMAIL") else None
+    password = env.ONEMAP_PASSWORD if hasattr(env, "ONEMAP_PASSWORD") else None
+    if not email or not password:
+        print("[onemap] ONEMAP_EMAIL / ONEMAP_PASSWORD secrets not configured")
+        return ""
 
     init = Object.new()
     init.method = "POST"
