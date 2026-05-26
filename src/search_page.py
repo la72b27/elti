@@ -14,7 +14,7 @@ _SEARCH_TEMPLATE = """\
   <title>ELTI – Block Search</title>
   <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
   <style>
-    body { background: #f0f2f5; padding: 20px; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }
+    body { background: #f0f2f5; padding: 20px; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; overflow-x: hidden; }
     .page-wrap { max-width: 720px; margin: auto; }
     .card { border-radius: 10px; box-shadow: 0 4px 16px rgba(0,0,0,.09); margin-bottom: 16px; overflow: hidden; }
     .card-header { border-radius: 10px 10px 0 0 !important; font-weight: 600; padding: 10px 16px; }
@@ -34,21 +34,29 @@ _SEARCH_TEMPLATE = """\
     .lt-divider { border: 0; border-top: 1px solid #e9ecef; margin: 10px 0 6px; }
     .mode-btn { cursor: pointer; padding: 4px 14px; border-radius: 20px; font-size: .85em;
                 font-weight: 600; border: 2px solid #2a007c; color: #2a007c; background: #fff;
-                transition: all .2s; }
+                transition: all .2s; -webkit-tap-highlight-color: transparent;
+                touch-action: manipulation; flex-shrink: 0; }
     .mode-btn.active { background: #2a007c; color: #fff; }
-    .btn-srch { background: #2a007c; color: #fff; border: none; border-radius: 6px;
-                padding: 8px 24px; font-weight: 600; font-size: .95em; width: 100%;
-                cursor: pointer; transition: background .2s; }
-    .btn-srch:hover { background: rgb(153,87,255); }
+    .btn-srch { display: block; box-sizing: border-box; width: 100%; background: #2a007c;
+                color: #fff; border: none; border-radius: 6px; padding: 8px 24px;
+                font-weight: 600; font-size: .95em; cursor: pointer; transition: background .2s;
+                -webkit-tap-highlight-color: transparent; touch-action: manipulation;
+                -webkit-appearance: none; }
+    .btn-srch:hover, .btn-srch:active { background: rgb(153,87,255); }
     .btn-open { background: #2a007c; color: #fff !important; border: none; border-radius: 6px;
                 padding: 5px 16px; font-size: .85em; font-weight: 600; text-decoration: none;
-                display: inline-block; transition: background .2s; }
-    .btn-open:hover { background: rgb(153,87,255); }
+                display: inline-block; transition: background .2s;
+                -webkit-tap-highlight-color: transparent; touch-action: manipulation; }
+    .btn-open:hover, .btn-open:active { background: rgb(153,87,255); }
     @media (max-width: 576px) {
       body { padding: 10px; }
       .block-title { font-size: 1.25rem; }
       .device-id-list { font-size: .83rem; }
       .lt-left { border-right: none; border-bottom: 1px solid #e9ecef; margin-bottom: 12px; padding-bottom: 4px; }
+      /* Prevent iOS Safari from zooming in on input focus (requires ≥16px) */
+      .form-control, .form-control-sm, input, select, textarea { font-size: 16px !important; }
+      /* Mode toggle row wrap on very narrow screens */
+      .d-flex.gap-2.mb-3 { flex-wrap: wrap; }
     }
   </style>
 </head>
@@ -58,7 +66,7 @@ _SEARCH_TEMPLATE = """\
   <!-- Nav -->
   <div class="d-flex align-items-center justify-content-between mb-3">
     <span class="text-muted" style="font-size:.85em">ELTI Block Search</span>
-    <a href="/" class="btn btn-sm btn-outline-secondary">← Back</a>
+    <a href="/" class="btn btn-sm btn-outline-secondary" style="-webkit-tap-highlight-color:transparent;touch-action:manipulation">← Back</a>
   </div>
 
   <!-- Search card -->

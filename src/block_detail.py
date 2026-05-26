@@ -34,15 +34,15 @@ _TEMPLATE = """\
   <title>ELTI – ###BLOCK_ID###</title>
   <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
   <style>
-    body { background: #f0f2f5; padding: 20px; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }
+    body { background: #f0f2f5; padding: 20px; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; overflow-x: hidden; }
     .page-wrap { max-width: 720px; margin: auto; }
     .card { border-radius: 10px; box-shadow: 0 4px 16px rgba(0,0,0,.09); margin-bottom: 16px; overflow: hidden; }
     .card-header { border-radius: 10px 10px 0 0 !important; font-weight: 600; padding: 10px 16px; }
     .block-title { font-size: 1.6rem; font-weight: 700; color: #2a007c; letter-spacing: .02em; }
     .lmd-device-id { font-size: .82em; color: #888; font-family: monospace; white-space: nowrap; }
     .device-id-list { font-size: 1.07rem; font-weight: 700; color: #2a007c; letter-spacing: .02em; text-align: right; }
-    .sub-addr { font-size: .9em; color: #555; border-bottom: 1px dashed #bbb; text-decoration: none; display: inline-block; margin-top: 4px; cursor: pointer; background: none; border-top: none; border-left: none; border-right: none; padding: 0; }
-    .sub-addr:hover { color: #2a007c; border-bottom-color: #2a007c; }
+    .sub-addr { font-size: .9em; color: #555; border-bottom: 1px dashed #bbb; text-decoration: none; display: inline-block; margin-top: 4px; cursor: pointer; background: none; border-top: none; border-left: none; border-right: none; padding: 0; -webkit-tap-highlight-color: transparent; touch-action: manipulation; }
+    .sub-addr:hover, .sub-addr:active { color: #2a007c; border-bottom-color: #2a007c; }
     .field-label { color: #888; font-size: .72em; text-transform: uppercase; letter-spacing: .06em; margin-bottom: 2px; }
     .field-value { font-size: .95em; font-weight: 500; word-break: break-word; }
     .hdr-tms { background: #2a007c; color: #fff; }
@@ -58,6 +58,8 @@ _TEMPLATE = """\
       .block-title { font-size: 1.25rem; }
       .device-id-list { font-size: .83rem; }
       .lt-left { border-right: none; border-bottom: 1px solid #e9ecef; margin-bottom: 12px; padding-bottom: 4px; }
+      /* Reduce header card side padding on narrow screens */
+      .card-body.py-3.px-4 { padding-left: 1rem !important; padding-right: 1rem !important; }
     }
   </style>
 </head>
@@ -70,7 +72,7 @@ _TEMPLATE = """\
       ELTI Block Detail
       &nbsp;<span class="badge bg-secondary" style="font-size:.65em;vertical-align:middle">Updated: ###UPDATED###</span>
     </span>
-    <a href="/" class="btn btn-sm btn-outline-secondary">← Back</a>
+    <a href="/" class="btn btn-sm btn-outline-secondary" style="-webkit-tap-highlight-color:transparent;touch-action:manipulation">← Back</a>
   </div>
 
   <!-- Header card: block ID + LMD Device ID + address -->
