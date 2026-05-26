@@ -1,6 +1,6 @@
-"""Block detail page renderer for ELTI Worker (v1.3.7.8)."""
+"""Block detail page renderer for ELTI Worker (v1.3.7.9)."""
 
-_VERSION = "1.3.7.8"
+_VERSION = "1.3.7.9"
 
 try:
     from urllib.parse import quote as _url_quote
@@ -45,7 +45,7 @@ _TEMPLATE = """\
     .field-label { color: #888; font-size: .72em; text-transform: uppercase; letter-spacing: .06em; margin-bottom: 2px; }
     .field-value { font-size: .95em; font-weight: 500; word-break: break-word; }
     .hdr-tms { background: #2a007c; color: #fff; }
-    .hdr-lt  { background: #0d6efd; color: #fff; }
+    .hdr-lt  { background: rgb(34,213,254); color: #1a1a2e; }
     .bdg-comf { background: rgb(153,87,255); color: #fff; border-radius: 20px; padding: 2px 10px; font-size: .8em; font-weight: 500; display:inline-block; flex-shrink:0; }
     .bdg-iof  { background: rgb(34,213,254);  color: #222; border-radius: 20px; padding: 2px 10px; font-size: .8em; font-weight: 500; display:inline-block; flex-shrink:0; }
     .alarm-time { font-size: .95em; font-weight: 500; }

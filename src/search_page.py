@@ -1,6 +1,6 @@
-"""Block search page renderer for ELTI Worker (v1.3.7.8)."""
+"""Block search page renderer for ELTI Worker (v1.3.7.9)."""
 
-_VERSION = "1.3.7.8"
+_VERSION = "1.3.7.9"
 
 _SEARCH_TEMPLATE = """\
 <!DOCTYPE html>
@@ -23,25 +23,25 @@ _SEARCH_TEMPLATE = """\
     .field-label { color: #888; font-size: .72em; text-transform: uppercase; letter-spacing: .06em; margin-bottom: 2px; }
     .field-value { font-size: .95em; font-weight: 500; word-break: break-word; }
     .hdr-tms  { background: #2a007c; color: #fff; }
-    .hdr-lt   { background: #0d6efd; color: #fff; }
-    .hdr-srch { background: #2d007d; color: #fff; }
+    .hdr-lt   { background: rgb(34,213,254); color: #1a1a2e; }
+    .hdr-srch { background: #2a007c; color: #fff; }
     .bdg-comf { background: rgb(153,87,255); color: #fff; border-radius: 20px; padding: 2px 10px; font-size: .8em; font-weight: 500; display:inline-block; flex-shrink:0; }
     .bdg-iof  { background: rgb(34,213,254);  color: #222; border-radius: 20px; padding: 2px 10px; font-size: .8em; font-weight: 500; display:inline-block; flex-shrink:0; }
     .alarm-time { font-size: .95em; font-weight: 500; }
     .no-data { color: #999; font-style: italic; margin: 0; }
     .lt-left  { border-right: 1px solid #e9ecef; }
     .mode-btn { cursor: pointer; padding: 4px 14px; border-radius: 20px; font-size: .85em;
-                font-weight: 600; border: 2px solid #2d007d; color: #2d007d; background: #fff;
+                font-weight: 600; border: 2px solid #2a007c; color: #2a007c; background: #fff;
                 transition: all .2s; }
-    .mode-btn.active { background: #2d007d; color: #fff; }
-    .btn-srch { background: #2d007d; color: #fff; border: none; border-radius: 6px;
+    .mode-btn.active { background: #2a007c; color: #fff; }
+    .btn-srch { background: #2a007c; color: #fff; border: none; border-radius: 6px;
                 padding: 8px 24px; font-weight: 600; font-size: .95em; width: 100%;
                 cursor: pointer; transition: background .2s; }
-    .btn-srch:hover { background: #3d00a8; }
-    .btn-open { background: #2d007d; color: #fff !important; border: none; border-radius: 6px;
+    .btn-srch:hover { background: rgb(153,87,255); }
+    .btn-open { background: #2a007c; color: #fff !important; border: none; border-radius: 6px;
                 padding: 5px 16px; font-size: .85em; font-weight: 600; text-decoration: none;
                 display: inline-block; transition: background .2s; }
-    .btn-open:hover { background: #3d00a8; }
+    .btn-open:hover { background: rgb(153,87,255); }
     @media (max-width: 576px) {
       body { padding: 10px; }
       .block-title { font-size: 1.25rem; }
@@ -187,11 +187,6 @@ function renderResults(d) {
           + '<div class="card-body"><p class="no-data">No matching Lift Talk record found for this block.</p>'
           + '</div></div>';
   }
-
-  // ── Open Block Detail link ────────────────────────────────────────────────
-  html += '<div class="d-flex justify-content-end mb-3">'
-        + '<a href="' + esc(d.block_detail_url) + '" target="_blank" rel="noopener" class="btn-open">'
-        + 'Open Block Detail ↗</a></div>';
 
   document.getElementById('results').innerHTML = html;
 }
