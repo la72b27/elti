@@ -1,6 +1,6 @@
-"""Block detail page renderer for ELTI Worker (v1.3.7.10)."""
+"""Block detail page renderer for ELTI Worker (v1.3.7.11)."""
 
-_VERSION = "1.3.7.10"
+_VERSION = "1.3.7.11"
 
 try:
     from urllib.parse import quote as _url_quote
@@ -270,15 +270,16 @@ def render_html(rows: list, tc: str, pfx: str, block: str,
         devices_html = ""
         for dev in lmd_devices:
             left_html = (
-                _field("LMD Device ID", dev.get("lmd_device_id") or "")
-                + _field("LMD IP",      dev.get("lmd_ip")         or "")
-                + _field("LSS",         dev.get("lss")            or "")
+                _field("Lift Name - Linked", dev.get("lift_name_linked") or "")
+                + _field("LMD Device ID",    dev.get("lmd_device_id")    or "")
+                + _field("LMD IP",           dev.get("lmd_ip")           or "")
+                + _field("LSS",              dev.get("lss")              or "")
             )
             right_html = (
-                _field("Proxy IP",   dev.get("proxy_ip")  or "")
-                + _field("VP Tun IP",  dev.get("vp_tun_ip") or "")
+                _field("Proxy IP",   dev.get("proxy_ip")   or "")
+                + _field("VP Tun IP",  dev.get("vp_tun_ip")  or "")
                 + _field("LMD Tun IP", dev.get("lmd_tun_ip") or "")
-                + _field("DVR IP",     dev.get("dvr_ip")    or "")
+                + _field("DVR IP",     dev.get("dvr_ip")     or "")
             )
             devices_html += (
                 '<hr class="lt-divider">'

@@ -80,18 +80,25 @@ def build_records(df: pd.DataFrame) -> list[dict]:
         vp_tun_ip  = _clean_ip(primary.get("Gateway1"))
         lmd_tun_ip = _ip_plus_one(vp_tun_ip) if vp_tun_ip else ""
 
+        # lmd_ips: all 10.5.x.x IPs per lift, format "A=ip, C=ip"
+        lmd_ip_parts: list[str] = []
         # DVR IP: aggregate across all lifts with non-empty dvrIP convert
         dvr_parts: list[str] = []
         for _, row in group.iterrows():
-            dvr  = _clean_ip(row.get("dvrIP convert"))
             lift = str(row.get("Lift", "")).strip()
+            ip   = _clean_ip(row.get("IP Address"))
+            dvr  = _clean_ip(row.get("dvrIP convert"))
+            if lift and ip and ip.startswith("10.5."):
+                lmd_ip_parts.append(f"{lift}={ip}")
             if dvr and lift:
                 dvr_parts.append(f"{lift}={dvr}")
-        dvr_ip = ", ".join(dvr_parts)
+        lmd_ips = ", ".join(lmd_ip_parts)
+        dvr_ip  = ", ".join(dvr_parts)
 
         records.append({
             "postal_code": postal_code,
             "lmd_ip":      lmd_ip,
+            "lmd_ips":     lmd_ips,
             "proxy_ip":    proxy_ip,
             "vp_tun_ip":   vp_tun_ip,
             "lmd_tun_ip":  lmd_tun_ip,

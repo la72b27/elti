@@ -25,19 +25,20 @@ BATCH_SIZE  = 200
 
 # Column mapping in the Excel sheet (0-based indices from headers)
 # Town_Council(0), town_council_code(2), Pre(3), block(4),
-# postal_code(7), Lift Names-All(9), LSS(12), Interface(13),
-# LMD Device ID(18), Full Add(25)
+# postal_code(7), Lift Names-All(9), Lift Name - Linked(10),
+# LSS(12), Interface(13), LMD Device ID(18), Full Add(25)
 _WANT = {
-    "Town_Council":      0,
-    "town_council_code": 2,
-    "Pre":               3,
-    "block":             4,
-    "postal_code":       7,
-    "Lift Names-All":    9,
-    "LSS":               12,
-    "Interface":         13,
-    "LMD Device ID":     18,
-    "Full Add":          25,
+    "Town_Council":        0,
+    "town_council_code":   2,
+    "Pre":                 3,
+    "block":               4,
+    "postal_code":         7,
+    "Lift Names-All":      9,
+    "Lift Name - Linked":  10,
+    "LSS":                 12,
+    "Interface":           13,
+    "LMD Device ID":       18,
+    "Full Add":            25,
 }
 
 
@@ -66,16 +67,17 @@ def read_lt() -> list[dict]:
         if not tc:
             continue
         records.append({
-            "tc":            tc,
-            "pfx":           _str(row[_WANT["Pre"]]),
-            "block":         _str(row[_WANT["block"]]),
-            "town_council":  _str(row[_WANT["Town_Council"]]),
-            "full_add":      _str(row[_WANT["Full Add"]]),
-            "postal_code":   _str(row[_WANT["postal_code"]]),
-            "lift_names_all":_str(row[_WANT["Lift Names-All"]]),
-            "interface":     _str(row[_WANT["Interface"]]),
-            "lss":           _str(row[_WANT["LSS"]]),
-            "lmd_device_id": _str(row[_WANT["LMD Device ID"]]),
+            "tc":               tc,
+            "pfx":              _str(row[_WANT["Pre"]]),
+            "block":            _str(row[_WANT["block"]]),
+            "town_council":     _str(row[_WANT["Town_Council"]]),
+            "full_add":         _str(row[_WANT["Full Add"]]),
+            "postal_code":      _str(row[_WANT["postal_code"]]),
+            "lift_names_all":   _str(row[_WANT["Lift Names-All"]]),
+            "lift_name_linked": _str(row[_WANT["Lift Name - Linked"]]),
+            "interface":        _str(row[_WANT["Interface"]]),
+            "lss":              _str(row[_WANT["LSS"]]),
+            "lmd_device_id":    _str(row[_WANT["LMD Device ID"]]),
         })
 
     wb.close()
