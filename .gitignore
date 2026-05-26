@@ -3,5 +3,6 @@ node_modules/
 __pycache__/
 *.pyc
 .env
-README.md
 migrations/lt_data.sql
+elti_d1_export_100.xlsx
+kv_dump.json
