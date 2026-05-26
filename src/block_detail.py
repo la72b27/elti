@@ -1,6 +1,6 @@
-"""Block detail page renderer for ELTI Worker (v1.3.7.13)."""
+"""Block detail page renderer for ELTI Worker (v1.3.7.14)."""
 
-_VERSION = "1.3.7.13"
+_VERSION = "1.3.7.14"
 
 try:
     from urllib.parse import quote as _url_quote
@@ -185,7 +185,7 @@ def render_html(rows: list, tc: str, pfx: str, block: str,
 
     # ── Header: LMD Device ID from Lift Talk MasterList (right side) ──────
     if lmd_device_id:
-        lmd_device_id_html = f'<span class="lmd-device-id">{_esc(lmd_device_id)}</span>'
+        lmd_device_id_html = f'<div class="block-title">{_esc(lmd_device_id)}</div>'
     else:
         lmd_device_id_html = ""
 

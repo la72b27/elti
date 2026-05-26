@@ -1,6 +1,6 @@
-"""Block search page renderer for ELTI Worker (v1.3.7.13)."""
+"""Block search page renderer for ELTI Worker (v1.3.7.14)."""
 
-_VERSION = "1.3.7.13"
+_VERSION = "1.3.7.14"
 
 _SEARCH_TEMPLATE = """\
 <!DOCTYPE html>
@@ -143,7 +143,7 @@ function renderResults(d) {
   var html = '<div class="card"><div class="card-body py-3 px-4">'
     + '<div class="d-flex justify-content-between align-items-center mb-1">'
     + '<div class="block-title">' + esc(d.block_id) + '</div>'
-    + (d.lmd_device_id ? '<span class="lmd-device-id">' + esc(d.lmd_device_id) + '</span>' : '')
+    + (d.lmd_device_id ? '<div class="block-title">' + esc(d.lmd_device_id) + '</div>' : '')
     + '</div>';
   if (d.address || d.postcode) {
     html += '<div class="text-muted small">' + esc(d.address || d.postcode) + '</div>';
