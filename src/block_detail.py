@@ -1,6 +1,6 @@
-"""Block detail page renderer for ELTI Worker (v1.3.7.6)."""
+"""Block detail page renderer for ELTI Worker (v1.3.7.7)."""
 
-_VERSION = "1.3.7.6"
+_VERSION = "1.3.7.7"
 
 try:
     from urllib.parse import quote as _url_quote
@@ -164,24 +164,26 @@ def render_html(rows: list, tc: str, pfx: str, block: str,
         tc, pfx, block, lift, address, postcode, lcoy, status_date,
         rbe, rbe_display, status,
         town_council, full_add, lt_postal_code, lift_names_all, interface, lss,
+        lmd_device_id,
         lmd_ip, proxy_ip, vp_tun_ip, lmd_tun_ip, dvr_ip
+    Rows with rbe='' are LT-only stub rows (no TMS alarm); alarm card skips them.
     """
     block_id = f"{_esc(tc)} {_esc(pfx)} {_esc(block)}"
 
     # ── Collect shared values from first available row ─────────────────────
-    postcode  = ""
-    address   = ""
-    lmd_ip    = ""
+    postcode      = ""
+    address       = ""
+    lmd_device_id = ""
     for row in rows:
-        postcode = postcode or (row.get("postcode") or "")
-        address  = address  or (row.get("address")  or "")
-        lmd_ip   = lmd_ip   or (row.get("lmd_ip")   or "")
-        if postcode and address and lmd_ip:
+        postcode      = postcode      or (row.get("postcode")      or "")
+        address       = address       or (row.get("address")       or "")
+        lmd_device_id = lmd_device_id or (row.get("lmd_device_id") or "")
+        if postcode and address and lmd_device_id:
             break
 
-    # ── Header: LMD Device ID (right side of title row) ───────────────────
-    if lmd_ip:
-        lmd_device_id_html = f'<span class="lmd-device-id">{_esc(lmd_ip)}</span>'
+    # ── Header: LMD Device ID from Lift Talk MasterList (right side) ──────
+    if lmd_device_id:
+        lmd_device_id_html = f'<span class="lmd-device-id">{_esc(lmd_device_id)}</span>'
     else:
         lmd_device_id_html = ""
 
@@ -204,6 +206,8 @@ def render_html(rows: list, tc: str, pfx: str, block: str,
     alarm_rows_html = ""
     for row in rows:
         rbe         = row.get("rbe", "")
+        if not rbe:     # LT-only stub row — no TMS alarm
+            continue
         rbe_display = row.get("rbe_display") or rbe
         bdg_cls     = "bdg-comf" if rbe == "COMF" else "bdg-iof"
         status_date = _esc(row.get("status_date") or "")
@@ -238,7 +242,8 @@ def render_html(rows: list, tc: str, pfx: str, block: str,
     lss_data = None
     for row in rows:
         if lt_data is None and any(
-            row.get(k) for k in ("town_council", "lift_names_all", "full_add", "lss")
+            row.get(k) for k in ("town_council", "lift_names_all", "full_add", "lss",
+                                  "lmd_device_id")
         ):
             lt_data = row
         if lss_data is None and any(
@@ -252,12 +257,13 @@ def render_html(rows: list, tc: str, pfx: str, block: str,
     has_lss = lss_data is not None
 
     if has_lt or has_lss:
-        # Left column: Town Council, Full Address, Lift Names, Interface
+        # Left column: Town Council, Full Address, Lift Names, Interface, LMD Device ID
         left_html = (
-            _field("Town Council",  (lt_data.get("town_council")  or "") if has_lt else "")
-            + _field("Full Address",  (lt_data.get("full_add")       or "") if has_lt else "")
-            + _field("Lift Names",    (lt_data.get("lift_names_all") or "") if has_lt else "")
-            + _field("Interface",     (lt_data.get("interface")      or "") if has_lt else "")
+            _field("Town Council",   (lt_data.get("town_council")  or "") if has_lt else "")
+            + _field("Full Address", (lt_data.get("full_add")       or "") if has_lt else "")
+            + _field("Lift Names",   (lt_data.get("lift_names_all") or "") if has_lt else "")
+            + _field("Interface",    (lt_data.get("interface")      or "") if has_lt else "")
+            + _field("LMD Device ID",(lt_data.get("lmd_device_id") or "") if has_lt else "")
         )
 
         # Right column: LSS, then IP fields

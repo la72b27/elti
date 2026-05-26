@@ -25,7 +25,8 @@ BATCH_SIZE  = 200
 
 # Column mapping in the Excel sheet (0-based indices from headers)
 # Town_Council(0), town_council_code(2), Pre(3), block(4),
-# postal_code(7), Lift Names-All(9), LSS(12), Interface(13), Full Add(25)
+# postal_code(7), Lift Names-All(9), LSS(12), Interface(13),
+# LMD Device ID(18), Full Add(25)
 _WANT = {
     "Town_Council":      0,
     "town_council_code": 2,
@@ -35,6 +36,7 @@ _WANT = {
     "Lift Names-All":    9,
     "LSS":               12,
     "Interface":         13,
+    "LMD Device ID":     18,
     "Full Add":          25,
 }
 
@@ -73,6 +75,7 @@ def read_lt() -> list[dict]:
             "lift_names_all":_str(row[_WANT["Lift Names-All"]]),
             "interface":     _str(row[_WANT["Interface"]]),
             "lss":           _str(row[_WANT["LSS"]]),
+            "lmd_device_id": _str(row[_WANT["LMD Device ID"]]),
         })
 
     wb.close()
