@@ -75,9 +75,20 @@ def build_records(df: pd.DataFrame) -> list[dict]:
         primary_rows = group[group["_is_105"]]
         primary = primary_rows.iloc[0] if len(primary_rows) else group.iloc[0]
 
-        lmd_ip     = _clean_ip(primary.get("IP Address"))
-        proxy_ip   = _clean_ip(primary.get("Host2"))
-        vp_tun_ip  = _clean_ip(primary.get("Gateway1"))
+        lmd_ip = _clean_ip(primary.get("IP Address"))
+
+        # For proxy/vp_tun: prefer first 10.5.x.x row WITH Host2 populated;
+        # fall back to primary (which may have no Host2) if none have it.
+        if len(primary_rows):
+            proxy_candidates = primary_rows[
+                primary_rows["Host2"].apply(lambda v: bool(_clean_ip(v)))
+            ]
+            proxy_src = proxy_candidates.iloc[0] if not proxy_candidates.empty else primary
+        else:
+            proxy_src = primary
+
+        proxy_ip   = _clean_ip(proxy_src.get("Host2"))
+        vp_tun_ip  = _clean_ip(proxy_src.get("Gateway1"))
         lmd_tun_ip = _ip_plus_one(vp_tun_ip) if vp_tun_ip else ""
 
         # lmd_ips: all 10.5.x.x IPs per lift, format "A=ip, C=ip"
