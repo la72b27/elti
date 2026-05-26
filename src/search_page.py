@@ -1,6 +1,6 @@
-"""Block search page renderer for ELTI Worker (v1.3.7.14)."""
+"""Block search page renderer for ELTI Worker (v1.3.7.15)."""
 
-_VERSION = "1.3.7.14"
+_VERSION = "1.3.7.15"
 
 _SEARCH_TEMPLATE = """\
 <!DOCTYPE html>
@@ -20,6 +20,7 @@ _SEARCH_TEMPLATE = """\
     .card-header { border-radius: 10px 10px 0 0 !important; font-weight: 600; padding: 10px 16px; }
     .block-title { font-size: 1.6rem; font-weight: 700; color: #2a007c; letter-spacing: .02em; }
     .lmd-device-id { font-size: .82em; color: #888; font-family: monospace; white-space: nowrap; }
+    .device-id-list { font-size: 1.07rem; font-weight: 700; color: #2a007c; letter-spacing: .02em; text-align: right; }
     .field-label { color: #888; font-size: .72em; text-transform: uppercase; letter-spacing: .06em; margin-bottom: 2px; }
     .field-value { font-size: .95em; font-weight: 500; word-break: break-word; }
     .hdr-tms  { background: #2a007c; color: #fff; }
@@ -46,6 +47,7 @@ _SEARCH_TEMPLATE = """\
     @media (max-width: 576px) {
       body { padding: 10px; }
       .block-title { font-size: 1.25rem; }
+      .device-id-list { font-size: .83rem; }
       .lt-left { border-right: none; border-bottom: 1px solid #e9ecef; margin-bottom: 12px; padding-bottom: 4px; }
     }
   </style>
@@ -140,10 +142,22 @@ function renderResults(d) {
   }
 
   // ── Header card ──────────────────────────────────────────────────────────
+  var devIds = [], seenDevIds = {};
+  if (Array.isArray(d.lmd_devices)) {
+    d.lmd_devices.forEach(function(dev) {
+      var id = dev.lmd_device_id;
+      if (id && !seenDevIds[id]) { seenDevIds[id] = true; devIds.push(id); }
+    });
+  }
+  var devIdHtml = devIds.length
+    ? '<div class="text-end">' + devIds.map(function(id) {
+        return '<div class="device-id-list">' + esc(id) + '</div>';
+      }).join('') + '</div>'
+    : '';
   var html = '<div class="card"><div class="card-body py-3 px-4">'
     + '<div class="d-flex justify-content-between align-items-center mb-1">'
     + '<div class="block-title">' + esc(d.block_id) + '</div>'
-    + (d.lmd_device_id ? '<div class="block-title">' + esc(d.lmd_device_id) + '</div>' : '')
+    + devIdHtml
     + '</div>';
   if (d.address || d.postcode) {
     html += '<div class="text-muted small">' + esc(d.address || d.postcode) + '</div>';

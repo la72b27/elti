@@ -1,7 +1,7 @@
-"""Export 50 randomly sampled records from the full LT MasterList to Excel,
+"""Export 99 randomly sampled records from the full LT MasterList to Excel,
 enriched with IP data joined from the LSS MasterList.
 
-Output: D:\TempStudy\VibeCoding\LS\export_random50.xlsx
+Output: D:\TempStudy\VibeCoding\LS\export_random99.xlsx
 """
 from __future__ import annotations
 import random
@@ -13,8 +13,8 @@ from openpyxl.utils import get_column_letter
 
 LT_FILE  = r"D:\TempStudy\VibeCoding\LS\Lift Talk - MasterList.xlsx"
 LSS_FILE = r"D:\TempStudy\VibeCoding\LS\LSS - MasterList.xlsx"
-OUT_FILE = r"D:\TempStudy\VibeCoding\LS\export_random50.xlsx"
-SAMPLE_N = 50
+OUT_FILE = r"D:\TempStudy\VibeCoding\LS\export_random99.xlsx"
+SAMPLE_N = 99
 SEED     = None   # set an int (e.g. 42) for reproducible output
 
 # LT columns (0-based index → label)
@@ -130,7 +130,7 @@ def main() -> None:
 
     wb_out = openpyxl.Workbook()
     ws_out = wb_out.active
-    ws_out.title = "Random 50 Sample"
+    ws_out.title = "Random 99 Sample"
 
     hdr_font  = Font(bold=True, color="FFFFFF")
     hdr_fill  = PatternFill("solid", fgColor="2A007C")

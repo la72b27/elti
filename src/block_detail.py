@@ -1,6 +1,6 @@
-"""Block detail page renderer for ELTI Worker (v1.3.7.14)."""
+"""Block detail page renderer for ELTI Worker (v1.3.7.15)."""
 
-_VERSION = "1.3.7.14"
+_VERSION = "1.3.7.15"
 
 try:
     from urllib.parse import quote as _url_quote
@@ -40,6 +40,7 @@ _TEMPLATE = """\
     .card-header { border-radius: 10px 10px 0 0 !important; font-weight: 600; padding: 10px 16px; }
     .block-title { font-size: 1.6rem; font-weight: 700; color: #2a007c; letter-spacing: .02em; }
     .lmd-device-id { font-size: .82em; color: #888; font-family: monospace; white-space: nowrap; }
+    .device-id-list { font-size: 1.07rem; font-weight: 700; color: #2a007c; letter-spacing: .02em; text-align: right; }
     .sub-addr { font-size: .9em; color: #555; border-bottom: 1px dashed #bbb; text-decoration: none; display: inline-block; margin-top: 4px; cursor: pointer; background: none; border-top: none; border-left: none; border-right: none; padding: 0; }
     .sub-addr:hover { color: #2a007c; border-bottom-color: #2a007c; }
     .field-label { color: #888; font-size: .72em; text-transform: uppercase; letter-spacing: .06em; margin-bottom: 2px; }
@@ -55,6 +56,7 @@ _TEMPLATE = """\
     @media (max-width: 576px) {
       body { padding: 10px; }
       .block-title { font-size: 1.25rem; }
+      .device-id-list { font-size: .83rem; }
       .lt-left { border-right: none; border-bottom: 1px solid #e9ecef; margin-bottom: 12px; padding-bottom: 4px; }
     }
   </style>
@@ -173,19 +175,31 @@ def render_html(rows: list, tc: str, pfx: str, block: str,
     block_id = f"{_esc(tc)} {_esc(pfx)} {_esc(block)}"
 
     # ── Collect shared values from first available row ─────────────────────
-    postcode      = ""
-    address       = ""
-    lmd_device_id = ""
+    postcode = ""
+    address  = ""
     for row in rows:
-        postcode      = postcode      or (row.get("postcode")      or "")
-        address       = address       or (row.get("address")       or "")
-        lmd_device_id = lmd_device_id or (row.get("lmd_device_id") or "")
-        if postcode and address and lmd_device_id:
+        postcode = postcode or (row.get("postcode") or "")
+        address  = address  or (row.get("address")  or "")
+        if postcode and address:
             break
 
-    # ── Header: LMD Device ID from Lift Talk MasterList (right side) ──────
-    if lmd_device_id:
-        lmd_device_id_html = f'<div class="block-title">{_esc(lmd_device_id)}</div>'
+    # ── Collect all unique LMD Device IDs from lmd_devices ────────────────
+    all_device_ids: list = []
+    _seen_ids: set = set()
+    for row in rows:
+        for dev in (row.get("lmd_devices") or []):
+            did = dev.get("lmd_device_id") or ""
+            if did and did not in _seen_ids:
+                _seen_ids.add(did)
+                all_device_ids.append(did)
+
+    # ── Header: all LMD Device IDs (right side, 2/3 of block-title size) ──
+    if all_device_ids:
+        ids_inner = "".join(
+            f'<div class="device-id-list">{_esc(d)}</div>'
+            for d in all_device_ids
+        )
+        lmd_device_id_html = f'<div class="text-end">{ids_inner}</div>'
     else:
         lmd_device_id_html = ""
 
