@@ -1,6 +1,6 @@
-"""Block search page renderer for ELTI Worker (v1.3.7.15)."""
+"""Block search page renderer for ELTI Worker (v1.4.0.0)."""
 
-_VERSION = "1.3.7.15"
+_VERSION = "1.4.0.0"
 
 _SEARCH_TEMPLATE = """\
 <!DOCTYPE html>
@@ -16,7 +16,7 @@ _SEARCH_TEMPLATE = """\
   <style>
     body { background: #f0f2f5; padding: 20px; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }
     .page-wrap { max-width: 720px; margin: auto; }
-    .card { border-radius: 10px; box-shadow: 0 4px 16px rgba(0,0,0,.09); margin-bottom: 16px; }
+    .card { border-radius: 10px; box-shadow: 0 4px 16px rgba(0,0,0,.09); margin-bottom: 16px; overflow: hidden; }
     .card-header { border-radius: 10px 10px 0 0 !important; font-weight: 600; padding: 10px 16px; }
     .block-title { font-size: 1.6rem; font-weight: 700; color: #2a007c; letter-spacing: .02em; }
     .lmd-device-id { font-size: .82em; color: #888; font-family: monospace; white-space: nowrap; }
@@ -184,17 +184,21 @@ function renderResults(d) {
   var lt      = d.lt || {};
   var devices = Array.isArray(d.lmd_devices) ? d.lmd_devices : [];
   var hasLT   = [lt.town_council, lt.full_add, lt.lift_names_all, lt.interface].some(function(v){return v && v.trim();});
+  // Section bg: Part1 neutral, then COMF-tint, IOF-tint, fallback
+  var sectBg = ['#f8f9fa', '#f0eeff', '#e8fbff', '#f0fff4'];
 
   if (hasLT || devices.length) {
     // Part 1: common fields (full width)
-    var part1 = '<div class="row g-0">'
+    var part1 = '<div style="background:' + sectBg[0] + ';padding:12px 16px">'
+      + '<div class="row g-0">'
       + fld('Town Council', lt.town_council) + fld('Full Address', lt.full_add)
       + fld('Lift Names',   lt.lift_names_all) + fld('Interface',  lt.interface)
-      + '</div>';
+      + '</div></div>';
 
-    // Part 2+: one section per LMD device
+    // Part 2+: one section per LMD device, each with a distinct tinted background
     var devSections = '';
-    devices.forEach(function(dev) {
+    devices.forEach(function(dev, i) {
+      var bg = sectBg[Math.min(i + 1, sectBg.length - 1)];
       var left = fld('Lift Name - Linked', dev.lift_name_linked)
                + fld('LMD Device ID',     dev.lmd_device_id)
                + fld('LMD IP',            dev.lmd_ip)
@@ -203,15 +207,15 @@ function renderResults(d) {
                + fld('VP Tun IP',  dev.vp_tun_ip)
                + fld('LMD Tun IP', dev.lmd_tun_ip)
                + fld('DVR IP',     dev.dvr_ip);
-      devSections += '<hr class="lt-divider">'
+      devSections += '<div style="background:' + bg + ';padding:12px 16px;border-top:1px solid rgba(0,0,0,.07)">'
         + '<div class="row g-0">'
         + '<div class="col-6 lt-left pe-3">' + left  + '</div>'
         + '<div class="col-6 ps-3">'          + right + '</div>'
-        + '</div>';
+        + '</div></div>';
     });
 
     html += '<div class="card"><div class="card-header hdr-lt">LMD INFO Enrichment</div>'
-          + '<div class="card-body">' + part1 + devSections + '</div></div>';
+          + '<div class="card-body p-0">' + part1 + devSections + '</div></div>';
   } else {
     html += '<div class="card"><div class="card-header hdr-lt">LMD INFO Enrichment</div>'
           + '<div class="card-body"><p class="no-data">No matching LMD INFO record found for this block.</p>'

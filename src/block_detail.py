@@ -1,6 +1,6 @@
-"""Block detail page renderer for ELTI Worker (v1.3.7.15)."""
+"""Block detail page renderer for ELTI Worker (v1.4.0.0)."""
 
-_VERSION = "1.3.7.15"
+_VERSION = "1.4.0.0"
 
 try:
     from urllib.parse import quote as _url_quote
@@ -36,7 +36,7 @@ _TEMPLATE = """\
   <style>
     body { background: #f0f2f5; padding: 20px; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }
     .page-wrap { max-width: 720px; margin: auto; }
-    .card { border-radius: 10px; box-shadow: 0 4px 16px rgba(0,0,0,.09); margin-bottom: 16px; }
+    .card { border-radius: 10px; box-shadow: 0 4px 16px rgba(0,0,0,.09); margin-bottom: 16px; overflow: hidden; }
     .card-header { border-radius: 10px 10px 0 0 !important; font-weight: 600; padding: 10px 16px; }
     .block-title { font-size: 1.6rem; font-weight: 700; color: #2a007c; letter-spacing: .02em; }
     .lmd-device-id { font-size: .82em; color: #888; font-family: monospace; white-space: nowrap; }
@@ -269,20 +269,26 @@ def render_html(rows: list, tc: str, pfx: str, block: str,
 
     has_lt = lt_data is not None
 
+    # Section background colours: Part 1 neutral, then COMF-tint / IOF-tint / fallback
+    _SECT_BG = ["#f8f9fa", "#f0eeff", "#e8fbff", "#f0fff4"]
+
     if has_lt or lmd_devices:
         # Part 1: common fields (full width, stacked)
+        _bg0 = _SECT_BG[0]
         part1_html = (
+            f'<div style="background:{_bg0};padding:12px 16px">'
             '<div class="row g-0">'
             + _field("Town Council",  (lt_data.get("town_council")  or "") if has_lt else "")
             + _field("Full Address",  (lt_data.get("full_add")       or "") if has_lt else "")
             + _field("Lift Names",    (lt_data.get("lift_names_all") or "") if has_lt else "")
             + _field("Interface",     (lt_data.get("interface")      or "") if has_lt else "")
-            + '</div>'
+            + '</div></div>'
         )
 
-        # Part 2+: one section per LMD device
+        # Part 2+: one section per LMD device, each with a distinct tinted background
         devices_html = ""
-        for dev in lmd_devices:
+        for _i, dev in enumerate(lmd_devices):
+            _bg = _SECT_BG[min(_i + 1, len(_SECT_BG) - 1)]
             left_html = (
                 _field("Lift Name - Linked", dev.get("lift_name_linked") or "")
                 + _field("LMD Device ID",    dev.get("lmd_device_id")    or "")
@@ -296,17 +302,17 @@ def render_html(rows: list, tc: str, pfx: str, block: str,
                 + _field("DVR IP",     dev.get("dvr_ip")     or "")
             )
             devices_html += (
-                '<hr class="lt-divider">'
+                f'<div style="background:{_bg};padding:12px 16px;border-top:1px solid rgba(0,0,0,.07)">'
                 '<div class="row g-0">'
                 f'<div class="col-6 lt-left pe-3">{left_html}</div>'
                 f'<div class="col-6 ps-3">{right_html}</div>'
-                '</div>'
+                '</div></div>'
             )
 
         lt_card = (
             '<div class="card">'
             '<div class="card-header hdr-lt">LMD INFO Enrichment</div>'
-            '<div class="card-body">'
+            '<div class="card-body p-0">'
             + part1_html
             + devices_html
             + '</div></div>'
