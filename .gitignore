@@ -5,4 +5,6 @@ __pycache__/
 .env
 migrations/lt_data.sql
 elti_d1_export_100.xlsx
+elti_d1_export_50.xlsx
 kv_dump.json
+README.md
