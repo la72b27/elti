@@ -1,6 +1,6 @@
-"""Block detail page renderer for ELTI Worker (v1.4.0.0)."""
+"""Block detail page renderer for ELTI Worker (v1.4.0.1)."""
 
-_VERSION = "1.4.0.0"
+_VERSION = "1.4.0.1"
 
 try:
     from urllib.parse import quote as _url_quote

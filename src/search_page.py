@@ -1,6 +1,6 @@
-"""Block search page renderer for ELTI Worker (v1.4.0.0)."""
+"""Block search page renderer for ELTI Worker (v1.4.0.1)."""
 
-_VERSION = "1.4.0.0"
+_VERSION = "1.4.0.1"
 
 _SEARCH_TEMPLATE = """\
 <!DOCTYPE html>
@@ -37,11 +37,10 @@ _SEARCH_TEMPLATE = """\
                 transition: all .2s; -webkit-tap-highlight-color: transparent;
                 touch-action: manipulation; flex-shrink: 0; }
     .mode-btn.active { background: #2a007c; color: #fff; }
-    .btn-srch { display: block; box-sizing: border-box; width: 100%; background: #2a007c;
-                color: #fff; border: none; border-radius: 6px; padding: 8px 24px;
-                font-weight: 600; font-size: .95em; cursor: pointer; transition: background .2s;
-                -webkit-tap-highlight-color: transparent; touch-action: manipulation;
-                -webkit-appearance: none; }
+    .btn-srch { background: #2a007c; color: #fff; border: none; border-radius: 6px;
+                padding: 8px 24px; font-weight: 600; font-size: .95em; cursor: pointer;
+                transition: background .2s; -webkit-tap-highlight-color: transparent;
+                touch-action: manipulation; -webkit-appearance: none; }
     .btn-srch:hover, .btn-srch:active { background: rgb(153,87,255); }
     .btn-open { background: #2a007c; color: #fff !important; border: none; border-radius: 6px;
                 padding: 5px 16px; font-size: .85em; font-weight: 600; text-decoration: none;
@@ -112,7 +111,7 @@ _SEARCH_TEMPLATE = """\
                pattern="[0-9]{6}" autocomplete="off">
       </div>
 
-      <button class="btn-srch mt-3" onclick="doSearch()">Search</button>
+      <div class="d-grid mt-3"><button class="btn-srch" onclick="doSearch()">Search</button></div>
     </div>
   </div>
 
