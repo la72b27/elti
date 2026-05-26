@@ -124,7 +124,12 @@ def _parse_date(raw: str) -> str:
     if m:
         return f"{m.group(1)} {m.group(2).zfill(2)}:{m.group(3).zfill(2)}"
     try:
-        dt = datetime.fromisoformat(raw.replace("Z", "+00:00"))
-        return dt.astimezone(SGT).strftime("%Y-%m-%d %H:%M")
+        # Only convert to SGT when an explicit UTC indicator is present.
+        # TMS setDate without a timezone is already in SGT — do NOT shift.
+        if "Z" in raw or "+00:00" in raw:
+            dt = datetime.fromisoformat(raw.replace("Z", "+00:00"))
+            return dt.astimezone(SGT).strftime("%Y-%m-%d %H:%M")
+        dt = datetime.fromisoformat(raw)
+        return dt.strftime("%Y-%m-%d %H:%M")
     except Exception:
         return raw

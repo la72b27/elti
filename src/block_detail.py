@@ -1,6 +1,6 @@
-"""Block detail page renderer for ELTI Worker (v1.3.7.2)."""
+"""Block detail page renderer for ELTI Worker (v1.3.7.5)."""
 
-_VERSION = "1.3.7.4"
+_VERSION = "1.3.7.5"
 
 try:
     from urllib.parse import quote as _url_quote
@@ -27,7 +27,7 @@ _TEMPLATE = """\
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <meta http-equiv="Content-Security-Policy"
-    content="default-src 'self'; style-src 'unsafe-inline' https://cdn.jsdelivr.net; img-src 'self' data:; frame-ancestors 'none'">
+    content="default-src 'self'; style-src 'unsafe-inline' https://cdn.jsdelivr.net; script-src 'unsafe-inline'; connect-src 'self'; img-src 'self' data:; frame-ancestors 'none'">
   <meta http-equiv="X-Content-Type-Options" content="nosniff">
   <title>ELTI – ###BLOCK_ID###</title>
   <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
@@ -37,7 +37,7 @@ _TEMPLATE = """\
     .card { border-radius: 10px; box-shadow: 0 4px 16px rgba(0,0,0,.09); margin-bottom: 16px; }
     .card-header { border-radius: 10px 10px 0 0 !important; font-weight: 600; padding: 10px 16px; }
     .block-title { font-size: 1.6rem; font-weight: 700; color: #2a007c; letter-spacing: .02em; }
-    .sub-addr { font-size: .9em; color: #555; border-bottom: 1px dashed #bbb; text-decoration: none; display: inline-block; margin-top: 4px; }
+    .sub-addr { font-size: .9em; color: #555; border-bottom: 1px dashed #bbb; text-decoration: none; display: inline-block; margin-top: 4px; cursor: pointer; background: none; border-top: none; border-left: none; border-right: none; padding: 0; }
     .sub-addr:hover { color: #2a007c; border-bottom-color: #2a007c; }
     .field-label { color: #888; font-size: .72em; text-transform: uppercase; letter-spacing: .06em; margin-bottom: 2px; }
     .field-value { font-size: .95em; font-weight: 500; word-break: break-word; }
@@ -45,10 +45,9 @@ _TEMPLATE = """\
     .hdr-lt  { background: #0d6efd; color: #fff; }
     .bdg-comf { background: rgb(153,87,255); color: #fff; border-radius: 20px; padding: 2px 10px; font-size: .8em; font-weight: 500; display:inline-block; }
     .bdg-iof  { background: rgb(34,213,254);  color: #222; border-radius: 20px; padding: 2px 10px; font-size: .8em; font-weight: 500; display:inline-block; }
-    .status-set { background: #dc3545; color: #fff; border-radius: 4px; padding: 2px 7px; font-size: .85em; font-weight: bold; }
-    .status-ok  { color: #28a745; font-weight: 500; }
     .no-data { color: #999; font-style: italic; margin: 0; }
-    @media (max-width: 576px) { body { padding: 10px; } .block-title { font-size: 1.25rem; } }
+    .lt-left  { border-right: 1px solid #e9ecef; }
+    @media (max-width: 576px) { body { padding: 10px; } .block-title { font-size: 1.25rem; } .lt-left { border-right: none; border-bottom: 1px solid #e9ecef; margin-bottom: 12px; padding-bottom: 4px; } }
   </style>
 </head>
 <body>
@@ -58,7 +57,7 @@ _TEMPLATE = """\
   <div class="d-flex align-items-center justify-content-between mb-3">
     <span class="text-muted" style="font-size:.85em">
       ELTI Block Detail
-      &nbsp;<span class="badge bg-secondary" style="font-size:.65em;vertical-align:middle">v###VERSION###</span>
+      &nbsp;<span class="badge bg-secondary" style="font-size:.65em;vertical-align:middle">Updated: ###UPDATED###</span>
     </span>
     <a href="/" class="btn btn-sm btn-outline-secondary">← Back</a>
   </div>
@@ -78,6 +77,42 @@ _TEMPLATE = """\
   ###LT_CARD###
 
 </div>
+<script>
+async function openOneMap(block, address, el) {
+  const sv = encodeURIComponent(block + ' ' + address);
+  const api = '/api/onemap/search?searchVal=' + sv + '&returnGeom=Y&getAddrDetails=Y&pageNum=1';
+  const orig = el.textContent;
+  el.textContent = '⏳ ' + orig;
+  el.style.pointerEvents = 'none';
+  const ctrl = new AbortController();
+  const tid = setTimeout(function(){ ctrl.abort(); }, 8000);
+  try {
+    const resp = await fetch(api, {signal: ctrl.signal});
+    clearTimeout(tid);
+    if (!resp.ok) throw new Error('http');
+    const j = await resp.json();
+    if (Array.isArray(j.results) && j.results.length > 0) {
+      const r = j.results[0];
+      const lat = parseFloat(r.LATITUDE), lng = parseFloat(r.LONGITUDE);
+      if (isFinite(lat) && isFinite(lng)) {
+        const u = new URL('https://www.onemap.gov.sg/main/v2/');
+        u.searchParams.set('lat', lat.toFixed(6));
+        u.searchParams.set('lng', lng.toFixed(6));
+        u.searchParams.set('zoomLevel', '18');
+        u.searchParams.set('marker', lat.toFixed(6)+','+lng.toFixed(6)+','+block+' '+address);
+        window.open(u.toString(), '_blank');
+        el.textContent = orig; el.style.pointerEvents = '';
+        return;
+      }
+    }
+    window.open('https://www.onemap.gov.sg/main/v2/?query=' + sv, '_blank');
+  } catch(e) {
+    clearTimeout(tid);
+    window.open('https://www.onemap.gov.sg/main/v2/?query=' + sv, '_blank');
+  }
+  el.textContent = orig; el.style.pointerEvents = '';
+}
+</script>
 </body>
 </html>"""
 
@@ -92,7 +127,12 @@ def _esc(v) -> str:
              .replace('"', "&quot;"))
 
 
-def _field(label: str, value, col: str = "col-6 col-sm-4") -> str:
+def _js(v) -> str:
+    """Escape a value for use inside a JS single-quoted string."""
+    return _esc(str(v) if v is not None else "").replace("'", "&#39;")
+
+
+def _field(label: str, value, col: str = "col-12") -> str:
     raw = str(value).strip() if value is not None else ""
     val_html = _esc(raw) if raw else "<span style='color:#ccc'>—</span>"
     return (
@@ -105,7 +145,8 @@ def _field(label: str, value, col: str = "col-6 col-sm-4") -> str:
 
 # ── Main render ───────────────────────────────────────────────────────────────
 
-def render_html(rows: list, tc: str, pfx: str, block: str) -> str:
+def render_html(rows: list, tc: str, pfx: str, block: str,
+                last_updated: str = "") -> str:
     """Return a complete HTML page for a single block.
 
     Each dict in *rows* must contain the keys produced by _d1_load_block():
@@ -125,48 +166,34 @@ def render_html(rows: list, tc: str, pfx: str, block: str) -> str:
             break
 
     if address:
-        q = _url_quote(f"{block} {address}")
-        pc_part = f'&nbsp;&nbsp;<span style="color:#aaa">·</span>&nbsp;&nbsp;{_esc(postcode)}' if postcode else ""
+        pc_part = (f'&nbsp;&nbsp;<span style="color:#aaa">·</span>&nbsp;&nbsp;{_esc(postcode)}'
+                   if postcode else "")
         address_html = (
-            f'<a class="sub-addr" '
-            f'href="https://www.onemap.gov.sg/main/v2/?query={q}" '
-            f'target="_blank" rel="noopener noreferrer">'
+            f'<button class="sub-addr" '
+            f'onclick="openOneMap(\'{_js(block)}\',\'{_js(address)}\',this)">'
             f'{_esc(address)}{pc_part}'
-            f'</a>'
+            f'</button>'
         )
     else:
         address_html = f'<span class="text-muted small">{_esc(postcode) or "No address data"}</span>'
 
-    # ── TMS Alarm cards ───────────────────────────────────────────────────
+    # ── TMS Alarm cards (one per RBE, only shows badge + Status Date) ─────
     alarm_parts = []
     for row in rows:
         rbe         = row.get("rbe", "")
         rbe_display = row.get("rbe_display") or rbe
         bdg_cls     = "bdg-comf" if rbe == "COMF" else "bdg-iof"
-        try:
-            status = int(row.get("status") or 1)
-        except (TypeError, ValueError):
-            status = 1
-        status_html = ('<span class="status-set">SET</span>'
-                       if status != 1 else '<span class="status-ok">Normal</span>')
+        status_date = _esc(row.get("status_date") or "")
 
         alarm_parts.append(
             '<div class="card">'
             f'<div class="card-header hdr-tms d-flex align-items-center gap-2">'
             f'TMS Alarm&nbsp;<span class="{bdg_cls}">{_esc(rbe_display)}</span>'
             '</div>'
-            '<div class="card-body"><div class="row">'
-            + _field("TC",          row.get("tc"))
-            + _field("Pfx",         row.get("pfx"))
-            + _field("Block",       row.get("block"))
-            + _field("Lift",        row.get("lift"))
-            + _field("LCOY",        row.get("lcoy"))
-            + _field("Postcode",    row.get("postcode"))
-            + _field("Status Date", row.get("status_date"), "col-12 col-sm-4")
-            + (f'<div class="col-6 col-sm-4 mb-3">'
-               f'<div class="field-label">Status</div>'
-               f'<div class="field-value">{status_html}</div></div>')
-            + '</div></div></div>'
+            '<div class="card-body py-2">'
+            '<div class="field-label">Status Date</div>'
+            f'<div class="field-value">{status_date if status_date else "<span style=\'color:#ccc\'>—</span>"}</div>'
+            '</div></div>'
         )
 
     alarm_cards = "\n".join(alarm_parts) if alarm_parts else (
@@ -188,14 +215,21 @@ def render_html(rows: list, tc: str, pfx: str, block: str) -> str:
         lt_card = (
             '<div class="card">'
             '<div class="card-header hdr-lt">Lift Talk Enrichment</div>'
-            '<div class="card-body"><div class="row">'
-            + _field("Town Council",     lt_data.get("town_council"),    "col-12 col-sm-8")
-            + _field("Postal Code (LT)", lt_data.get("lt_postal_code"),  "col-6 col-sm-4")
-            + _field("Full Address",     lt_data.get("full_add"),         "col-12")
-            + _field("Lift Names",       lt_data.get("lift_names_all"),   "col-12 col-sm-4")
-            + _field("Interface",        lt_data.get("interface"),         "col-6 col-sm-4")
-            + _field("LSS",              lt_data.get("lss"),               "col-6 col-sm-4")
-            + '</div></div></div>'
+            '<div class="card-body">'
+            '<div class="row g-0">'
+            # Left column: Town Council, Full Address, Lift Names, Interface
+            '<div class="col-8 lt-left pe-3">'
+            + _field("Town Council",  lt_data.get("town_council"))
+            + _field("Full Address",  lt_data.get("full_add"))
+            + _field("Lift Names",    lt_data.get("lift_names_all"))
+            + _field("Interface",     lt_data.get("interface"))
+            + '</div>'
+            # Right column: LSS
+            '<div class="col-4 ps-3">'
+            + _field("LSS", lt_data.get("lss"))
+            + '</div>'
+            '</div>'
+            '</div></div>'
         )
     else:
         lt_card = (
@@ -206,9 +240,11 @@ def render_html(rows: list, tc: str, pfx: str, block: str) -> str:
             '</div></div>'
         )
 
+    updated = _esc(last_updated) if last_updated else "—"
+
     html = _TEMPLATE
     html = html.replace("###BLOCK_ID###",     block_id)
-    html = html.replace("###VERSION###",      _VERSION)
+    html = html.replace("###UPDATED###",      updated)
     html = html.replace("###ADDRESS_HTML###", address_html)
     html = html.replace("###ALARM_CARDS###",  alarm_cards)
     html = html.replace("###LT_CARD###",      lt_card)
