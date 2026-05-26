@@ -1,6 +1,6 @@
-"""Block search page renderer for ELTI Worker (v1.3.7.11)."""
+"""Block search page renderer for ELTI Worker (v1.3.7.12)."""
 
-_VERSION = "1.3.7.11"
+_VERSION = "1.3.7.12"
 
 _SEARCH_TEMPLATE = """\
 <!DOCTYPE html>
@@ -30,6 +30,7 @@ _SEARCH_TEMPLATE = """\
     .alarm-time { font-size: .95em; font-weight: 500; }
     .no-data { color: #999; font-style: italic; margin: 0; }
     .lt-left  { border-right: 1px solid #e9ecef; }
+    .lt-divider { border: 0; border-top: 1px solid #e9ecef; margin: 10px 0 6px; }
     .mode-btn { cursor: pointer; padding: 4px 14px; border-radius: 20px; font-size: .85em;
                 font-weight: 600; border: 2px solid #2a007c; color: #2a007c; background: #fff;
                 transition: all .2s; }
@@ -165,26 +166,41 @@ function renderResults(d) {
   html += '<div class="card"><div class="card-header hdr-tms">TMS Alarm</div>'
         + '<div class="card-body py-3">' + alarmBody + '</div></div>';
 
-  // ── LT Enrichment card ────────────────────────────────────────────────────
-  var lt = d.lt || {}, lss = d.lss || {};
-  var anyLT  = [lt.town_council, lt.full_add, lt.lift_names_all, lt.interface, lt.lmd_device_id].some(function(v){return v && v.trim();});
-  var anyLSS = [lss.lmd_ip, lss.proxy_ip, lss.vp_tun_ip, lss.lmd_tun_ip, lss.dvr_ip].some(function(v){return v && v.trim();});
+  // ── LMD INFO Enrichment card ──────────────────────────────────────────────
+  var lt      = d.lt || {};
+  var devices = Array.isArray(d.lmd_devices) ? d.lmd_devices : [];
+  var hasLT   = [lt.town_council, lt.full_add, lt.lift_names_all, lt.interface].some(function(v){return v && v.trim();});
 
-  if (anyLT || anyLSS) {
-    var left = fld('Town Council', lt.town_council) + fld('Full Address', lt.full_add)
-             + fld('Lift Names',   lt.lift_names_all) + fld('Interface', lt.interface)
-             + fld('LMD Device ID',lt.lmd_device_id);
-    var right= fld('LSS',        lt.lss)          + fld('LMD IP',    lss.lmd_ip)
-             + fld('Proxy IP',   lss.proxy_ip)    + fld('VP Tun IP', lss.vp_tun_ip)
-             + fld('LMD Tun IP', lss.lmd_tun_ip)  + fld('DVR IP',    lss.dvr_ip);
-    html += '<div class="card"><div class="card-header hdr-lt">Lift Talk Enrichment</div>'
-          + '<div class="card-body"><div class="row g-0">'
-          + '<div class="col-8 lt-left pe-3">' + left  + '</div>'
-          + '<div class="col-4 ps-3">'         + right + '</div>'
-          + '</div></div></div>';
+  if (hasLT || devices.length) {
+    // Part 1: common fields (full width)
+    var part1 = '<div class="row g-0">'
+      + fld('Town Council', lt.town_council) + fld('Full Address', lt.full_add)
+      + fld('Lift Names',   lt.lift_names_all) + fld('Interface',  lt.interface)
+      + '</div>';
+
+    // Part 2+: one section per LMD device
+    var devSections = '';
+    devices.forEach(function(dev) {
+      var left = fld('Lift Name - Linked', dev.lift_name_linked)
+               + fld('LMD Device ID',     dev.lmd_device_id)
+               + fld('LMD IP',            dev.lmd_ip)
+               + fld('LSS',               dev.lss);
+      var right= fld('Proxy IP',   dev.proxy_ip)
+               + fld('VP Tun IP',  dev.vp_tun_ip)
+               + fld('LMD Tun IP', dev.lmd_tun_ip)
+               + fld('DVR IP',     dev.dvr_ip);
+      devSections += '<hr class="lt-divider">'
+        + '<div class="row g-0">'
+        + '<div class="col-6 lt-left pe-3">' + left  + '</div>'
+        + '<div class="col-6 ps-3">'          + right + '</div>'
+        + '</div>';
+    });
+
+    html += '<div class="card"><div class="card-header hdr-lt">LMD INFO Enrichment</div>'
+          + '<div class="card-body">' + part1 + devSections + '</div></div>';
   } else {
-    html += '<div class="card"><div class="card-header hdr-lt">Lift Talk Enrichment</div>'
-          + '<div class="card-body"><p class="no-data">No matching Lift Talk record found for this block.</p>'
+    html += '<div class="card"><div class="card-header hdr-lt">LMD INFO Enrichment</div>'
+          + '<div class="card-body"><p class="no-data">No matching LMD INFO record found for this block.</p>'
           + '</div></div>';
   }
 
