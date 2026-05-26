@@ -1,13 +1,15 @@
-"""Block detail page renderer for ELTI Worker (v1.3.7.5)."""
+"""Block detail page renderer for ELTI Worker (v1.3.7.6)."""
 
-_VERSION = "1.3.7.5"
+_VERSION = "1.3.7.6"
 
 try:
     from urllib.parse import quote as _url_quote
 except ImportError:
     def _url_quote(s, safe=""):  # type: ignore[misc]
         result = []
-        safe_set = set(safe) | set("ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_.~")
+        safe_set = set(safe) | set(
+            "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_.~"
+        )
         for c in s:
             if c in safe_set:
                 result.append(c)
@@ -18,7 +20,7 @@ except ImportError:
         return "".join(result)
 
 
-# ── HTML template (###PLACEHOLDER### markers keep CSS braces intact) ──────────
+# ── HTML template ─────────────────────────────────────────────────────────────
 
 _TEMPLATE = """\
 <!DOCTYPE html>
@@ -37,17 +39,23 @@ _TEMPLATE = """\
     .card { border-radius: 10px; box-shadow: 0 4px 16px rgba(0,0,0,.09); margin-bottom: 16px; }
     .card-header { border-radius: 10px 10px 0 0 !important; font-weight: 600; padding: 10px 16px; }
     .block-title { font-size: 1.6rem; font-weight: 700; color: #2a007c; letter-spacing: .02em; }
+    .lmd-device-id { font-size: .82em; color: #888; font-family: monospace; white-space: nowrap; }
     .sub-addr { font-size: .9em; color: #555; border-bottom: 1px dashed #bbb; text-decoration: none; display: inline-block; margin-top: 4px; cursor: pointer; background: none; border-top: none; border-left: none; border-right: none; padding: 0; }
     .sub-addr:hover { color: #2a007c; border-bottom-color: #2a007c; }
     .field-label { color: #888; font-size: .72em; text-transform: uppercase; letter-spacing: .06em; margin-bottom: 2px; }
     .field-value { font-size: .95em; font-weight: 500; word-break: break-word; }
     .hdr-tms { background: #2a007c; color: #fff; }
     .hdr-lt  { background: #0d6efd; color: #fff; }
-    .bdg-comf { background: rgb(153,87,255); color: #fff; border-radius: 20px; padding: 2px 10px; font-size: .8em; font-weight: 500; display:inline-block; }
-    .bdg-iof  { background: rgb(34,213,254);  color: #222; border-radius: 20px; padding: 2px 10px; font-size: .8em; font-weight: 500; display:inline-block; }
+    .bdg-comf { background: rgb(153,87,255); color: #fff; border-radius: 20px; padding: 2px 10px; font-size: .8em; font-weight: 500; display:inline-block; flex-shrink:0; }
+    .bdg-iof  { background: rgb(34,213,254);  color: #222; border-radius: 20px; padding: 2px 10px; font-size: .8em; font-weight: 500; display:inline-block; flex-shrink:0; }
+    .alarm-time { font-size: .95em; font-weight: 500; }
     .no-data { color: #999; font-style: italic; margin: 0; }
     .lt-left  { border-right: 1px solid #e9ecef; }
-    @media (max-width: 576px) { body { padding: 10px; } .block-title { font-size: 1.25rem; } .lt-left { border-right: none; border-bottom: 1px solid #e9ecef; margin-bottom: 12px; padding-bottom: 4px; } }
+    @media (max-width: 576px) {
+      body { padding: 10px; }
+      .block-title { font-size: 1.25rem; }
+      .lt-left { border-right: none; border-bottom: 1px solid #e9ecef; margin-bottom: 12px; padding-bottom: 4px; }
+    }
   </style>
 </head>
 <body>
@@ -62,16 +70,19 @@ _TEMPLATE = """\
     <a href="/" class="btn btn-sm btn-outline-secondary">← Back</a>
   </div>
 
-  <!-- Header card: block ID + address -->
+  <!-- Header card: block ID + LMD Device ID + address -->
   <div class="card">
     <div class="card-body py-3 px-4">
-      <div class="block-title mb-1">###BLOCK_ID###</div>
+      <div class="d-flex justify-content-between align-items-center mb-1">
+        <div class="block-title">###BLOCK_ID###</div>
+        ###LMD_DEVICE_ID_HTML###
+      </div>
       ###ADDRESS_HTML###
     </div>
   </div>
 
-  <!-- TMS alarm cards (one per RBE) -->
-  ###ALARM_CARDS###
+  <!-- TMS alarm card -->
+  ###ALARM_CARD###
 
   <!-- Lift Talk enrichment card -->
   ###LT_CARD###
@@ -79,23 +90,23 @@ _TEMPLATE = """\
 </div>
 <script>
 async function openOneMap(block, address, el) {
-  const sv = encodeURIComponent(block + ' ' + address);
-  const api = '/api/onemap/search?searchVal=' + sv + '&returnGeom=Y&getAddrDetails=Y&pageNum=1';
-  const orig = el.textContent;
+  var sv = encodeURIComponent(block + ' ' + address);
+  var api = '/api/onemap/search?searchVal=' + sv + '&returnGeom=Y&getAddrDetails=Y&pageNum=1';
+  var orig = el.textContent;
   el.textContent = '⏳ ' + orig;
   el.style.pointerEvents = 'none';
-  const ctrl = new AbortController();
-  const tid = setTimeout(function(){ ctrl.abort(); }, 8000);
+  var ctrl = new AbortController();
+  var tid = setTimeout(function(){ ctrl.abort(); }, 8000);
   try {
-    const resp = await fetch(api, {signal: ctrl.signal});
+    var resp = await fetch(api, {signal: ctrl.signal});
     clearTimeout(tid);
     if (!resp.ok) throw new Error('http');
-    const j = await resp.json();
+    var j = await resp.json();
     if (Array.isArray(j.results) && j.results.length > 0) {
-      const r = j.results[0];
-      const lat = parseFloat(r.LATITUDE), lng = parseFloat(r.LONGITUDE);
+      var r = j.results[0];
+      var lat = parseFloat(r.LATITUDE), lng = parseFloat(r.LONGITUDE);
       if (isFinite(lat) && isFinite(lng)) {
-        const u = new URL('https://www.onemap.gov.sg/main/v2/');
+        var u = new URL('https://www.onemap.gov.sg/main/v2/');
         u.searchParams.set('lat', lat.toFixed(6));
         u.searchParams.set('lng', lng.toFixed(6));
         u.searchParams.set('zoomLevel', '18');
@@ -128,7 +139,7 @@ def _esc(v) -> str:
 
 
 def _js(v) -> str:
-    """Escape a value for use inside a JS single-quoted string."""
+    """Escape for use inside a JS single-quoted string."""
     return _esc(str(v) if v is not None else "").replace("'", "&#39;")
 
 
@@ -136,7 +147,7 @@ def _field(label: str, value, col: str = "col-12") -> str:
     raw = str(value).strip() if value is not None else ""
     val_html = _esc(raw) if raw else "<span style='color:#ccc'>—</span>"
     return (
-        f'<div class="{col} mb-3">'
+        f'<div class="{col} mb-2">'
         f'<div class="field-label">{label}</div>'
         f'<div class="field-value">{val_html}</div>'
         f'</div>'
@@ -152,19 +163,29 @@ def render_html(rows: list, tc: str, pfx: str, block: str,
     Each dict in *rows* must contain the keys produced by _d1_load_block():
         tc, pfx, block, lift, address, postcode, lcoy, status_date,
         rbe, rbe_display, status,
-        town_council, full_add, lt_postal_code, lift_names_all, interface, lss
+        town_council, full_add, lt_postal_code, lift_names_all, interface, lss,
+        lmd_ip, proxy_ip, vp_tun_ip, lmd_tun_ip, dvr_ip
     """
     block_id = f"{_esc(tc)} {_esc(pfx)} {_esc(block)}"
 
-    # ── Header: first available address / postcode ────────────────────────
-    postcode = ""
-    address  = ""
+    # ── Collect shared values from first available row ─────────────────────
+    postcode  = ""
+    address   = ""
+    lmd_ip    = ""
     for row in rows:
         postcode = postcode or (row.get("postcode") or "")
         address  = address  or (row.get("address")  or "")
-        if postcode and address:
+        lmd_ip   = lmd_ip   or (row.get("lmd_ip")   or "")
+        if postcode and address and lmd_ip:
             break
 
+    # ── Header: LMD Device ID (right side of title row) ───────────────────
+    if lmd_ip:
+        lmd_device_id_html = f'<span class="lmd-device-id">{_esc(lmd_ip)}</span>'
+    else:
+        lmd_device_id_html = ""
+
+    # ── Header: address link ───────────────────────────────────────────────
     if address:
         pc_part = (f'&nbsp;&nbsp;<span style="color:#aaa">·</span>&nbsp;&nbsp;{_esc(postcode)}'
                    if postcode else "")
@@ -175,59 +196,87 @@ def render_html(rows: list, tc: str, pfx: str, block: str,
             f'</button>'
         )
     else:
-        address_html = f'<span class="text-muted small">{_esc(postcode) or "No address data"}</span>'
+        address_html = (
+            f'<span class="text-muted small">{_esc(postcode) or "No address data"}</span>'
+        )
 
-    # ── TMS Alarm cards (one per RBE, only shows badge + Status Date) ─────
-    alarm_parts = []
+    # ── Merged TMS Alarm card: one row per RBE, badge + time only ─────────
+    alarm_rows_html = ""
     for row in rows:
         rbe         = row.get("rbe", "")
         rbe_display = row.get("rbe_display") or rbe
         bdg_cls     = "bdg-comf" if rbe == "COMF" else "bdg-iof"
         status_date = _esc(row.get("status_date") or "")
+        time_html   = (status_date
+                       if status_date
+                       else "<span style='color:#ccc'>—</span>")
+        alarm_rows_html += (
+            f'<div class="d-flex align-items-center gap-2 mb-2">'
+            f'<span class="{bdg_cls}">{_esc(rbe_display)}</span>'
+            f'<span class="alarm-time">{time_html}</span>'
+            f'</div>'
+        )
 
-        alarm_parts.append(
+    if alarm_rows_html:
+        alarm_card = (
             '<div class="card">'
-            f'<div class="card-header hdr-tms d-flex align-items-center gap-2">'
-            f'TMS Alarm&nbsp;<span class="{bdg_cls}">{_esc(rbe_display)}</span>'
+            '<div class="card-header hdr-tms">TMS Alarm</div>'
+            f'<div class="card-body py-3">{alarm_rows_html}</div>'
             '</div>'
-            '<div class="card-body py-2">'
-            '<div class="field-label">Status Date</div>'
-            f'<div class="field-value">{status_date if status_date else "<span style=\'color:#ccc\'>—</span>"}</div>'
+        )
+    else:
+        alarm_card = (
+            '<div class="card">'
+            '<div class="card-header hdr-tms">TMS Alarm</div>'
+            '<div class="card-body">'
+            '<p class="no-data">No TMS alarm record found for this block.</p>'
             '</div></div>'
         )
 
-    alarm_cards = "\n".join(alarm_parts) if alarm_parts else (
-        '<div class="card">'
-        '<div class="card-header hdr-tms">TMS Alarm</div>'
-        '<div class="card-body">'
-        '<p class="no-data">No TMS alarm record found for this block.</p>'
-        '</div></div>'
-    )
-
     # ── Lift Talk enrichment card ─────────────────────────────────────────
-    lt_data = None
+    lt_data  = None
+    lss_data = None
     for row in rows:
-        if any(row.get(k) for k in ("town_council", "lift_names_all", "full_add", "lss")):
+        if lt_data is None and any(
+            row.get(k) for k in ("town_council", "lift_names_all", "full_add", "lss")
+        ):
             lt_data = row
+        if lss_data is None and any(
+            row.get(k) for k in ("lmd_ip", "proxy_ip", "vp_tun_ip", "lmd_tun_ip", "dvr_ip")
+        ):
+            lss_data = row
+        if lt_data and lss_data:
             break
 
-    if lt_data:
+    has_lt  = lt_data  is not None
+    has_lss = lss_data is not None
+
+    if has_lt or has_lss:
+        # Left column: Town Council, Full Address, Lift Names, Interface
+        left_html = (
+            _field("Town Council",  (lt_data.get("town_council")  or "") if has_lt else "")
+            + _field("Full Address",  (lt_data.get("full_add")       or "") if has_lt else "")
+            + _field("Lift Names",    (lt_data.get("lift_names_all") or "") if has_lt else "")
+            + _field("Interface",     (lt_data.get("interface")      or "") if has_lt else "")
+        )
+
+        # Right column: LSS, then IP fields
+        right_html = (
+            _field("LSS",         (lt_data.get("lss")         or "") if has_lt else "")
+            + _field("LMD IP",    (lss_data.get("lmd_ip")     or "") if has_lss else "")
+            + _field("Proxy IP",  (lss_data.get("proxy_ip")   or "") if has_lss else "")
+            + _field("VP Tun IP", (lss_data.get("vp_tun_ip")  or "") if has_lss else "")
+            + _field("LMD Tun IP",(lss_data.get("lmd_tun_ip") or "") if has_lss else "")
+            + _field("DVR IP",    (lss_data.get("dvr_ip")     or "") if has_lss else "")
+        )
+
         lt_card = (
             '<div class="card">'
             '<div class="card-header hdr-lt">Lift Talk Enrichment</div>'
             '<div class="card-body">'
             '<div class="row g-0">'
-            # Left column: Town Council, Full Address, Lift Names, Interface
-            '<div class="col-8 lt-left pe-3">'
-            + _field("Town Council",  lt_data.get("town_council"))
-            + _field("Full Address",  lt_data.get("full_add"))
-            + _field("Lift Names",    lt_data.get("lift_names_all"))
-            + _field("Interface",     lt_data.get("interface"))
-            + '</div>'
-            # Right column: LSS
-            '<div class="col-4 ps-3">'
-            + _field("LSS", lt_data.get("lss"))
-            + '</div>'
+            f'<div class="col-8 lt-left pe-3">{left_html}</div>'
+            f'<div class="col-4 ps-3">{right_html}</div>'
             '</div>'
             '</div></div>'
         )
@@ -243,9 +292,10 @@ def render_html(rows: list, tc: str, pfx: str, block: str,
     updated = _esc(last_updated) if last_updated else "—"
 
     html = _TEMPLATE
-    html = html.replace("###BLOCK_ID###",     block_id)
-    html = html.replace("###UPDATED###",      updated)
-    html = html.replace("###ADDRESS_HTML###", address_html)
-    html = html.replace("###ALARM_CARDS###",  alarm_cards)
-    html = html.replace("###LT_CARD###",      lt_card)
+    html = html.replace("###BLOCK_ID###",          block_id)
+    html = html.replace("###UPDATED###",           updated)
+    html = html.replace("###LMD_DEVICE_ID_HTML###", lmd_device_id_html)
+    html = html.replace("###ADDRESS_HTML###",       address_html)
+    html = html.replace("###ALARM_CARD###",         alarm_card)
+    html = html.replace("###LT_CARD###",            lt_card)
     return html
