@@ -1,6 +1,6 @@
-"""Block search page renderer for ELTI Worker (v1.3.7.9)."""
+"""Block search page renderer for ELTI Worker (v1.3.7.10)."""
 
-_VERSION = "1.3.7.9"
+_VERSION = "1.3.7.10"
 
 _SEARCH_TEMPLATE = """\
 <!DOCTYPE html>

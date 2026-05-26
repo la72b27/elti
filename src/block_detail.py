@@ -1,6 +1,6 @@
-"""Block detail page renderer for ELTI Worker (v1.3.7.9)."""
+"""Block detail page renderer for ELTI Worker (v1.3.7.10)."""
 
-_VERSION = "1.3.7.9"
+_VERSION = "1.3.7.10"
 
 try:
     from urllib.parse import quote as _url_quote
@@ -51,6 +51,7 @@ _TEMPLATE = """\
     .alarm-time { font-size: .95em; font-weight: 500; }
     .no-data { color: #999; font-style: italic; margin: 0; }
     .lt-left  { border-right: 1px solid #e9ecef; }
+    .lt-divider { border: 0; border-top: 1px solid #e9ecef; margin: 10px 0 6px; }
     @media (max-width: 576px) {
       body { padding: 10px; }
       .block-title { font-size: 1.25rem; }
@@ -84,7 +85,7 @@ _TEMPLATE = """\
   <!-- TMS alarm card -->
   ###ALARM_CARD###
 
-  <!-- Lift Talk enrichment card -->
+  <!-- LMD INFO enrichment card -->
   ###LT_CARD###
 
 </div>
@@ -165,7 +166,8 @@ def render_html(rows: list, tc: str, pfx: str, block: str,
         rbe, rbe_display, status,
         town_council, full_add, lt_postal_code, lift_names_all, interface, lss,
         lmd_device_id,
-        lmd_ip, proxy_ip, vp_tun_ip, lmd_tun_ip, dvr_ip
+        lmd_ip, proxy_ip, vp_tun_ip, lmd_tun_ip, dvr_ip,
+        lmd_devices  (list of per-device dicts)
     Rows with rbe='' are LT-only stub rows (no TMS alarm); alarm card skips them.
     """
     block_id = f"{_esc(tc)} {_esc(pfx)} {_esc(block)}"
@@ -237,61 +239,69 @@ def render_html(rows: list, tc: str, pfx: str, block: str,
             '</div></div>'
         )
 
-    # ── Lift Talk enrichment card ─────────────────────────────────────────
-    lt_data  = None
-    lss_data = None
+    # ── LMD INFO Enrichment card ──────────────────────────────────────────
+    # Collect common LT data and per-device list from first matching rows
+    lt_data     = None
+    lmd_devices = []
     for row in rows:
         if lt_data is None and any(
-            row.get(k) for k in ("town_council", "lift_names_all", "full_add", "lss",
-                                  "lmd_device_id")
+            row.get(k) for k in ("town_council", "lift_names_all", "full_add", "interface")
         ):
             lt_data = row
-        if lss_data is None and any(
-            row.get(k) for k in ("lmd_ip", "proxy_ip", "vp_tun_ip", "lmd_tun_ip", "dvr_ip")
-        ):
-            lss_data = row
-        if lt_data and lss_data:
+        if not lmd_devices:
+            lmd_devices = row.get("lmd_devices") or []
+        if lt_data and lmd_devices:
             break
 
-    has_lt  = lt_data  is not None
-    has_lss = lss_data is not None
+    has_lt = lt_data is not None
 
-    if has_lt or has_lss:
-        # Left column: Town Council, Full Address, Lift Names, Interface, LMD Device ID
-        left_html = (
-            _field("Town Council",   (lt_data.get("town_council")  or "") if has_lt else "")
-            + _field("Full Address", (lt_data.get("full_add")       or "") if has_lt else "")
-            + _field("Lift Names",   (lt_data.get("lift_names_all") or "") if has_lt else "")
-            + _field("Interface",    (lt_data.get("interface")      or "") if has_lt else "")
-            + _field("LMD Device ID",(lt_data.get("lmd_device_id") or "") if has_lt else "")
+    if has_lt or lmd_devices:
+        # Part 1: common fields (full width, stacked)
+        part1_html = (
+            '<div class="row g-0">'
+            + _field("Town Council",  (lt_data.get("town_council")  or "") if has_lt else "")
+            + _field("Full Address",  (lt_data.get("full_add")       or "") if has_lt else "")
+            + _field("Lift Names",    (lt_data.get("lift_names_all") or "") if has_lt else "")
+            + _field("Interface",     (lt_data.get("interface")      or "") if has_lt else "")
+            + '</div>'
         )
 
-        # Right column: LSS, then IP fields
-        right_html = (
-            _field("LSS",         (lt_data.get("lss")         or "") if has_lt else "")
-            + _field("LMD IP",    (lss_data.get("lmd_ip")     or "") if has_lss else "")
-            + _field("Proxy IP",  (lss_data.get("proxy_ip")   or "") if has_lss else "")
-            + _field("VP Tun IP", (lss_data.get("vp_tun_ip")  or "") if has_lss else "")
-            + _field("LMD Tun IP",(lss_data.get("lmd_tun_ip") or "") if has_lss else "")
-            + _field("DVR IP",    (lss_data.get("dvr_ip")     or "") if has_lss else "")
-        )
+        # Part 2+: one section per LMD device
+        devices_html = ""
+        for dev in lmd_devices:
+            left_html = (
+                _field("LMD Device ID", dev.get("lmd_device_id") or "")
+                + _field("LMD IP",      dev.get("lmd_ip")         or "")
+                + _field("LSS",         dev.get("lss")            or "")
+            )
+            right_html = (
+                _field("Proxy IP",   dev.get("proxy_ip")  or "")
+                + _field("VP Tun IP",  dev.get("vp_tun_ip") or "")
+                + _field("LMD Tun IP", dev.get("lmd_tun_ip") or "")
+                + _field("DVR IP",     dev.get("dvr_ip")    or "")
+            )
+            devices_html += (
+                '<hr class="lt-divider">'
+                '<div class="row g-0">'
+                f'<div class="col-6 lt-left pe-3">{left_html}</div>'
+                f'<div class="col-6 ps-3">{right_html}</div>'
+                '</div>'
+            )
 
         lt_card = (
             '<div class="card">'
-            '<div class="card-header hdr-lt">Lift Talk Enrichment</div>'
+            '<div class="card-header hdr-lt">LMD INFO Enrichment</div>'
             '<div class="card-body">'
-            '<div class="row g-0">'
-            f'<div class="col-8 lt-left pe-3">{left_html}</div>'
-            f'<div class="col-4 ps-3">{right_html}</div>'
-            '</div>'
-            '</div></div>'
+            + part1_html
+            + devices_html
+            + '</div></div>'
         )
     else:
         lt_card = (
             '<div class="card">'
-            '<div class="card-header hdr-lt">Lift Talk Enrichment</div>'
+            '<div class="card-header hdr-lt">LMD INFO Enrichment</div>'
             '<div class="card-body">'
-            '<p class="no-data">No matching Lift Talk record found for this block.</p>'
+            '<p class="no-data">No matching LMD INFO record found for this block.</p>'
             '</div></div>'
         )
 
