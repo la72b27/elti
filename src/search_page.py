@@ -1,6 +1,6 @@
-"""Block search page renderer for ELTI Worker (v1.4.0.3)."""
+"""Block search page renderer for ELTI Worker (v1.4.0.4)."""
 
-_VERSION = "1.4.0.3"
+_VERSION = "1.4.0.4"
 
 _SEARCH_TEMPLATE = """\
 <!DOCTYPE html>
@@ -195,11 +195,15 @@ function renderResults(d) {
   var sectBg = ['#f8f9fa', '#f0eeff', '#e8fbff', '#f0fff4'];
 
   if (hasLT || devices.length) {
-    // Part 1: common fields (full width)
+    // Part 1: two equal columns – left: Town Council + Full Address, right: Lift Names + Interface
     var part1 = '<div style="background:' + sectBg[0] + ';padding:12px 16px">'
       + '<div class="row g-0">'
+      + '<div class="col-6 lt-left pe-3">'
       + fld('Town Council', lt.town_council) + fld('Full Address', lt.full_add)
-      + fld('Lift Names',   lt.lift_names_all) + fld('Interface',  lt.interface)
+      + '</div>'
+      + '<div class="col-6 ps-3">'
+      + fld('Lift Names', lt.lift_names_all) + fld('Interface', lt.interface)
+      + '</div>'
       + '</div></div>';
 
     // Part 2+: one section per LMD device, each with a distinct tinted background

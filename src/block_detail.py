@@ -1,6 +1,6 @@
-"""Block detail page renderer for ELTI Worker (v1.4.0.3)."""
+"""Block detail page renderer for ELTI Worker (v1.4.0.4)."""
 
-_VERSION = "1.4.0.3"
+_VERSION = "1.4.0.4"
 
 try:
     from urllib.parse import quote as _url_quote
@@ -280,11 +280,15 @@ def render_html(rows: list, tc: str, pfx: str, block: str,
         part1_html = (
             f'<div style="background:{_bg0};padding:12px 16px">'
             '<div class="row g-0">'
-            + _field("Town Council",  (lt_data.get("town_council")  or "") if has_lt else "")
-            + _field("Full Address",  (lt_data.get("full_add")       or "") if has_lt else "")
-            + _field("Lift Names",    (lt_data.get("lift_names_all") or "") if has_lt else "")
-            + _field("Interface",     (lt_data.get("interface")      or "") if has_lt else "")
-            + '</div></div>'
+            '<div class="col-6 lt-left pe-3">'
+            + _field("Town Council", (lt_data.get("town_council") or "") if has_lt else "")
+            + _field("Full Address", (lt_data.get("full_add")      or "") if has_lt else "")
+            + '</div>'
+            '<div class="col-6 ps-3">'
+            + _field("Lift Names",   (lt_data.get("lift_names_all") or "") if has_lt else "")
+            + _field("Interface",    (lt_data.get("interface")       or "") if has_lt else "")
+            + '</div>'
+            '</div></div>'
         )
 
         # Part 2+: one section per LMD device, each with a distinct tinted background
