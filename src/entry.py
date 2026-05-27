@@ -41,7 +41,7 @@ HTML_TEMPLATE = """
 
         /* --- Button row: COMF / IOF --- */
         .header-btns { display: flex; gap: 8px; align-items: center; margin-bottom: 15px; }
-        .btn-stat { padding: 4px 14px; height: 38px; font-size: 0.95em; font-weight: bold; border-radius: 6px; transition: all 0.3s; border: 2px solid var(--comf-color); background-color: #fff; color: var(--comf-color); white-space: nowrap; display: flex; align-items: center; }
+        .btn-stat { padding: 4px 14px; height: 38px; font-size: 0.95em; font-weight: bold; border-radius: 6px; transition: all 0.3s; border: 2px solid var(--comf-color); background-color: #fff; color: var(--comf-color); white-space: nowrap; display: flex; align-items: center; justify-content: center; }
         .btn-stat.btn-iof-toggle { border-color: var(--iof-color); color: var(--iof-color); }
         .btn-stat.btn-comf-toggle.active, .btn-stat.btn-comf-toggle:hover { background-color: var(--comf-color); color: #fff; border-color: var(--comf-color); }
         .btn-stat.btn-iof-toggle.active, .btn-stat.btn-iof-toggle:hover { background-color: var(--iof-color); color: #fff; border-color: var(--iof-color); }
@@ -86,6 +86,7 @@ HTML_TEMPLATE = """
             .filter-info-inline strong { font-size: 0.95em; }
             .header-btns { gap: 5px; margin-bottom: 10px; flex-wrap: wrap; }
             .btn-stat { flex: 1 0 auto; padding: 3px 8px; height: 32px; font-size: 0.82em; min-width: 0; white-space: nowrap; }
+            #searchBtn { flex: 0 0 auto; }
             .tc-stats { gap: 5px; padding: 6px; margin-bottom: 10px; }
             .btn-tc { font-size: 0.78em; padding: 2px 7px; }
             table { font-size: 0.76em; }
@@ -98,8 +99,8 @@ HTML_TEMPLATE = """
         }
         .btn-route-toggle { border-color: rgb(178, 244, 43); color: rgb(40, 80, 0); }
         .btn-route-toggle:hover { background-color: rgb(178, 244, 43); color: #1a3300; border-color: rgb(178, 244, 43); }
-        .btn-search-toggle { border-color: rgb(42,0,124); color: rgb(42,0,124); border-width: 1px; }
-        .btn-search-toggle:hover { background-color: rgb(42,0,124); color: #fff; border-color: rgb(42,0,124); border-width: 1px; }
+        .btn-search-toggle { border-color: rgb(42,0,124); color: rgb(42,0,124); }
+        .btn-search-toggle:hover { background-color: rgb(42,0,124); color: #fff; border-color: rgb(42,0,124); }
         input[type="checkbox"].exclude-radio { cursor:pointer; width:15px; height:15px; accent-color:#dc3545; vertical-align:middle; }
     </style>
 </head>
